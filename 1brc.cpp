@@ -63,16 +63,23 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
 }
 
 unordered_map<string, vector<float>>*
-sequential_computation(char* mem) {
+sequential_computation(const unique_ptr<MappedFile>& mapped_file) {
    unordered_map<string, vector<float>> mapped_values = unordered_map<string, vector<float>>{};
    auto* results = new unordered_map<string, vector<float>> {};
+   auto* mem = mapped_file->map;
    // i := start , j := end
    int i = 0, j = 0;
-   char buffer_arr[200]; string buffer_str;
+   string buffer_str;
+   char buffer_arr[100];
+
    while (true) {
+
       if (mem[j] == '\0') { break; }
       if (mem[j] == '\n') {
-         memcpy(buffer_arr, mem + i, j);
+
+         // GRR n is an offset. Spent so much time debugging ...
+         std::memcpy(buffer_arr, mem + i, j - i);
+
          buffer_str = buffer_arr;
          if (buffer_str.empty() || buffer_str == "\n") {
             break;
@@ -80,16 +87,14 @@ sequential_computation(char* mem) {
          string station; float temp;
          station = buffer_str.substr(0, buffer_str.find(';'));
          temp = stof(buffer_str.substr(
-                    buffer_str.find(';') + 1,
-                      buffer_str.size() - 1)
-                    );
+               buffer_str.find(';') + 1,
+               buffer_str.size() - 1));
          if (mapped_values.find(station) == mapped_values.end()) {
             mapped_values[station].push_back(temp);
          } else {
             mapped_values[station] = vector<float> { temp };
          }
-         j++;
-         i = j;
+         i = ++j;
 
       } else { j++; }
    }
@@ -117,14 +122,14 @@ ostream& operator<<(ostream& os, const unordered_map<string, vector<float>>& map
 
 int main(int args, char** argv) {
    string filepath;
-   filepath = (args > 1) ? argv[0] : "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-10.txt";
+   filepath = (args > 1) ? argv[0] : "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-10000-unique-keys.txt";
 
    auto mapped_file = map_file2mem(filepath.c_str());
    if (mapped_file == nullptr) {
       perror("File mapping to memory failed."); exit(0);
    }
 
-   auto* results = sequential_computation(mapped_file->map);
+   auto* results = sequential_computation(mapped_file);
 
    cout << *results;
    delete results;
