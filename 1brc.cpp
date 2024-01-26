@@ -63,6 +63,11 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
 }
 
 unordered_map<string, vector<float>>*
+parallelized_computation(const unique_ptr<MappedFile>& mapped_file) {
+
+}
+
+unordered_map<string, vector<float>>*
 sequential_computation(const unique_ptr<MappedFile>& mapped_file) {
    unordered_map<string, vector<float>> mapped_values = unordered_map<string, vector<float>>{};
    auto* results = new unordered_map<string, vector<float>> {};

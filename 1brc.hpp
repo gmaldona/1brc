@@ -29,6 +29,9 @@ struct MappedFile {
 
 std::unique_ptr<MappedFile> map_file2mem(const char* path);
 
+std::unordered_map<std::string, ::std::vector<float>>*
+parallelized_computation(const std::unique_ptr<MappedFile>& mapped_file);
+
 std::unordered_map<std::string, std::vector<float>>*
 sequential_computation(char* mem);
 
