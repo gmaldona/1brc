@@ -15,6 +15,9 @@ sequential computing is more than enough and pre-mature parallelization can
 cost you performance. Hardware threads are expensive, so know when/where to 
 use them. 
 
-## Sequential Computation
+### Sequential Computation
 
-## Parallelization Computation
+### Parallelization Computation
+
+## Compilation
+Compiling this project requires GNU/make. 

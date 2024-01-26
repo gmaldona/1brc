@@ -28,21 +28,9 @@
 #include <cmath>
 #include <iostream>
 #include <iomanip>
-#include <array>
+#include "1brc.hpp"
 
 using namespace std;
-
-/**
- * A MappedFile is a structure that holds metadata about an memory mapped file.
- * The true purpose of containerizing these values was to take advantage of
- * a deconstruct function to unmap memory.
- */
-struct MappedFile {
-   int fd;
-   struct stat fileInfo;
-   char* map;
-   ~MappedFile();
-};
 
 MappedFile::~MappedFile() {
    if (munmap(map, fileInfo.st_size) == -1) {
@@ -114,7 +102,7 @@ sequential_computation(char* mem) {
    return results;
 }
 
-ostream& operator<<(ostream& os, unordered_map<string, vector<float> > map) {
+ostream& operator<<(ostream& os, const unordered_map<string, vector<float>>& map) {
    os << "{";
    for (auto [k, v] : map) {
       os << k << "=";
