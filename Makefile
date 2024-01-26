@@ -8,18 +8,25 @@
 # Graduate student @ Thomas J. Watson College of Engineering and Applied
 # Sciences, Binghamton University.
 
-CC = g++
-CFLAGS = -std=c++17 -Wall -Wextra -pedantic -g -c
+CC     = g++
+CFLAGS = -std=c++17 -Wall -Wextra -pedantic -g
 TARGET = 1brc
 
+.pre:
+	mkdir -p build
+
 all: $(TARGET)
+	make .post
 	$(RM) *.o
 
 $(TARGET): $(TARGET).o
-	g++ $(CFLAGS) -o build/$(TARGET) $(TARGET).cpp
+	$(CC) $(CFLAGS) -o build/$(TARGET) $(TARGET).cpp
 
-$(TARGET).o: $(TARGET).cpp $(TARGET).hpp
-	g++ $(CFLAGS) -c $(TARGET).cpp
+$(TARGET).o: .pre $(TARGET).cpp $(TARGET).hpp
+	$(CC) $(CFLAGS) -c $(TARGET).cpp
+
+.post:
+	chmod +x build/$(TARGET)
 
 clean:
 	$(RM) build/$(TARGET)

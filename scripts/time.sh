@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# 1 Billion Row Contest for Binghamton University CS 547.
+# see: https://github.com/gunnarmorling/1brc
+#
+# author: Gregory Maldonado
+# email : gmaldonado@cs.binghamton.edu
+# date  : 2024-01-25
+#
+# Graduate student @ Thomas J. Watson College of Engineering and Applied
+# Sciences, Binghamton University.
+
 # time.sh -
 #
 # Compiles the src code using the grading flags and times the executable.
@@ -10,11 +20,9 @@
 #
 
 git_root=$(git worktree list | cut -d' ' -f1)
-mkdir -p $git_root/build
 
-FLAGS="-std=c++17 -Wall -Wextra -pedantic -o"
-OUT="$git_root/build/1BRC"
+pushd $git_root
+   make
+popd
 
-g++ $FLAGS $OUT $git_root/1brc.cpp
-
-time "$OUT" > /dev/null
+time "$git_root/build/1brc" > /dev/null

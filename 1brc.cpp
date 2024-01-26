@@ -14,8 +14,8 @@
  * Goal: Grab all your (virtual) threads, reach out to SIMD, optimize your
  * GC, or pull any other trick, and create the fastest implementation for
  * solving this task!
- *
  */
+
 #include <string>
 #include <fcntl.h>
 #include <sys/mman.h>

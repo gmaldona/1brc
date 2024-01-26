@@ -1,14 +1,14 @@
 /*
-* 1 Billion Row Contest for Binghamton University CS 547.
-* see: https://github.com/gunnarmorling/1brc
-*
-* author: Gregory Maldonado
-* email : gmaldonado@cs.binghamton.edu
-* date  : 2024-01-25
-*
-* Graduate student @ Thomas J. Watson College of Engineering and Applied
-* Sciences, Binghamton University.
-*/
+ * 1 Billion Row Contest for Binghamton University CS 547.
+ * see: https://github.com/gunnarmorling/1brc
+ *
+ * author: Gregory Maldonado
+ * email : gmaldonado@cs.binghamton.edu
+ * date  : 2024-01-25
+ *
+ * Graduate student @ Thomas J. Watson College of Engineering and Applied
+ * Sciences, Binghamton University.
+ */
 
 #include <memory>
 #include <string>
