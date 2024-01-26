@@ -74,21 +74,19 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
    return mappedFile;
 }
 
-void
-sequential_computation(unique_ptr<MappedFile>&& mapped_file,
-                       const shared_ptr<unordered_map<string, vector<float>>>& results) {
+unordered_map<string, vector<float>>*
+sequential_computation(char* mem) {
    unordered_map<string, vector<float>> mapped_values = unordered_map<string, vector<float>>{};
-
+   auto* results = new unordered_map<string, vector<float>> {};
    // i := start , j := end
    int i = 0, j = 0;
-   char* mem = mapped_file->map;
-   char buffer_arr[100]; string buffer_str;
+   char buffer_arr[200]; string buffer_str;
    while (true) {
       if (mem[j] == '\0') { break; }
       if (mem[j] == '\n') {
          memcpy(buffer_arr, mem + i, j);
          buffer_str = buffer_arr;
-         if (buffer_str.empty()) {
+         if (buffer_str.empty() || buffer_str == "\n") {
             break;
          }
          string station; float temp;
@@ -110,12 +108,13 @@ sequential_computation(unique_ptr<MappedFile>&& mapped_file,
 
    for (auto [k, v] : mapped_values) {
       std::sort(v.begin(), v.end());
-      (*results)[k] = vector<float> { v[0], v[ceil(v.size() / 2)], v[v.size()] };
+      (*results)[k] = vector<float> { v[0], v[ceil(v.size() / 2)], v[v.size() - 1] };
    }
+
+   return results;
 }
 
-ostream& operator<<(ostream& os, unordered_map<string, vector<float>> map) {
-   // e.g. {Bosaso=-15.0/1.3/20.0, Petropavlovsk-Kamchatsky=-9.5/0.0/9.5}
+ostream& operator<<(ostream& os, unordered_map<string, vector<float> > map) {
    os << "{";
    for (auto [k, v] : map) {
       os << k << "=";
@@ -130,16 +129,17 @@ ostream& operator<<(ostream& os, unordered_map<string, vector<float>> map) {
 
 int main(int args, char** argv) {
    string filepath;
-   filepath = (args > 1) ? argv[0] : "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-1.txt";
+   filepath = (args > 1) ? argv[0] : "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-10.txt";
 
    auto mapped_file = map_file2mem(filepath.c_str());
    if (mapped_file == nullptr) {
       perror("File mapping to memory failed."); exit(0);
    }
 
-   // {Bosaso=-15.0/1.3/20.0, Petropavlovsk-Kamchatsky=-9.5/0.0/9.5}
-   auto results = make_shared<unordered_map<string, vector<float>>>();
-   sequential_computation(std::move(mapped_file), results);
+   auto* results = sequential_computation(mapped_file->map);
+
    cout << *results;
+   delete results;
+
    return 0;
 }
