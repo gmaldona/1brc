@@ -74,9 +74,10 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
    return mappedFile;
 }
 
-shared_ptr<unordered_map<string, vector<float>>> sequential_computation(unique_ptr<MappedFile> mapped_file) {
+void
+sequential_computation(unique_ptr<MappedFile>&& mapped_file,
+                       const shared_ptr<unordered_map<string, vector<float>>>& results) {
    unordered_map<string, vector<float>> mapped_values = unordered_map<string, vector<float>>{};
-   shared_ptr<unordered_map<string, vector<float>>> results = make_shared<unordered_map<string, vector<float>>>();
 
    // i := start , j := end
    int i = 0, j = 0;
@@ -94,9 +95,8 @@ shared_ptr<unordered_map<string, vector<float>>> sequential_computation(unique_p
          station = buffer_str.substr(0, buffer_str.find(';'));
          temp = stof(buffer_str.substr(
                     buffer_str.find(';') + 1,
-                      buffer_str.size())
+                      buffer_str.size() - 1)
                     );
-         cout << temp;
          if (mapped_values.find(station) == mapped_values.end()) {
             mapped_values[station].push_back(temp);
          } else {
@@ -112,7 +112,6 @@ shared_ptr<unordered_map<string, vector<float>>> sequential_computation(unique_p
       std::sort(v.begin(), v.end());
       (*results)[k] = vector<float> { v[0], v[ceil(v.size() / 2)], v[v.size()] };
    }
-   return results;
 }
 
 ostream& operator<<(ostream& os, unordered_map<string, vector<float>> map) {
@@ -121,17 +120,17 @@ ostream& operator<<(ostream& os, unordered_map<string, vector<float>> map) {
    for (auto [k, v] : map) {
       os << k << "=";
       for (int i = 0; i < v.size(); ++i) {
-         os << setprecision(1) << v[i];
+         os << v[i];
          if (i == v.size() - 1) { os << ", "; } else { os << "/"; }
       }
    }
-   os << (char)127 << (char)127 << "}";
+   os << char(0x08) << char(0x08) << "}";
    return os;
 }
 
 int main(int args, char** argv) {
    string filepath;
-   filepath = (args > 1) ? argv[0] : "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-3.txt";
+   filepath = (args > 1) ? argv[0] : "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-1.txt";
 
    auto mapped_file = map_file2mem(filepath.c_str());
    if (mapped_file == nullptr) {
@@ -139,7 +138,8 @@ int main(int args, char** argv) {
    }
 
    // {Bosaso=-15.0/1.3/20.0, Petropavlovsk-Kamchatsky=-9.5/0.0/9.5}
-   auto ptr = sequential_computation(std::move(mapped_file));
-   cout << *ptr;
+   auto results = make_shared<unordered_map<string, vector<float>>>();
+   sequential_computation(std::move(mapped_file), results);
+   cout << *results;
    return 0;
 }
