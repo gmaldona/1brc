@@ -118,7 +118,7 @@ ostream& operator<<(ostream& os, unordered_map<string, vector<float> > map) {
    os << "{";
    for (auto [k, v] : map) {
       os << k << "=";
-      for (int i = 0; i < v.size(); ++i) {
+      for (size_t i = 0; i < v.size(); ++i) {
          os << v[i];
          if (i == v.size() - 1) { os << ", "; } else { os << "/"; }
       }
