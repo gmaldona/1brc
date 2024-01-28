@@ -26,14 +26,11 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
-#include <fstream>
 #include <iomanip>
 #include <thread>
-#include <execution>
 #include <future>
 #include <chrono>
 #include <iostream>
-#include <algorithm>
 #include "1brc.hpp"
 
 #define DEBUG true
@@ -41,10 +38,10 @@
 using namespace std;
 
 MappedFile::~MappedFile() {
-   if (munmap(map, fileInfo.st_size) == -1) {
-      close(fd);
-      exit(1);
-   }
+  if (munmap(map, fileInfo.st_size) == -1) {
+	close(fd);
+	exit(1);
+  }
 }
 
 /*
@@ -54,114 +51,110 @@ MappedFile::~MappedFile() {
  * @returns: a pointer to the file contents.
  */
 unique_ptr<MappedFile> map_file2mem(const char *path) {
-   auto mappedFile = make_unique<MappedFile>();
+  auto mappedFile = make_unique<MappedFile>();
 
-   // try to open the file and if fail return nullptr for main to handle
-   if ((mappedFile->fd = open(path, O_RDONLY)) == -1 ||
-         stat(path, &mappedFile->fileInfo) == -1
-         ) {
-      return nullptr;
-   }
-   mappedFile->map = static_cast<char *>(mmap(0, mappedFile->fileInfo.st_size,
-                                              PROT_READ, MAP_SHARED,
-                                              mappedFile->fd, 0));
-   if (mappedFile->map == MAP_FAILED) {
-      return nullptr;
-   }
-   return mappedFile;
+  // try to open the file and if fail return nullptr for main to handle
+  if ((mappedFile->fd = open(path, O_RDONLY)) == -1 ||
+	  stat(path, &mappedFile->fileInfo) == -1
+	  ) {
+	return nullptr;
+  }
+  mappedFile->map = static_cast<char *>(mmap(0, mappedFile->fileInfo.st_size,
+											 PROT_READ, MAP_SHARED,
+											 mappedFile->fd, 0));
+  if (mappedFile->map == MAP_FAILED) {
+	return nullptr;
+  }
+  return mappedFile;
 }
 
 shared_ptr<unordered_multimap<string, float>>
 threaded_computation(const char *mem, const size_t &begin, const size_t &end) {
-   auto mapped_values = make_shared<unordered_multimap<string, float>>();
-   string buffer_str;
-   char buffer_arr[100];
-   long long i = begin;
-   long long j = begin;
+  auto mapped_values = make_shared<unordered_multimap<string, float>>();
 
-   while (j <= end) {
+  char buffer_arr[100];
+  string buffer_str;
+  unsigned long long i = begin;
+  unsigned long long j = begin;
 
-      if (mem[j] == '\n') {
+  while (j <= end) {
+	if (mem[j] == '\n') {
+	  memset(buffer_arr, 0, 100);
+	  std::memcpy(buffer_arr, mem + i, j - i);
+	  buffer_str = buffer_arr;
 
-         // GRR n is an offset. Spent so much time debugging ...
-         std::memcpy(buffer_arr, mem + i, j - i);
+	  string station = buffer_str.substr(0, buffer_str.find(';'));
+	  float temp = stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
 
-         buffer_str = buffer_arr;
-         if (buffer_str.empty() || buffer_str == "\n") {
-            break;
-         }
-         string station;
-         float temp;
-         station = buffer_str.substr(0, buffer_str.find(';'));
+	  mapped_values->insert({station, temp});
 
-         temp = stof(buffer_str.substr(
-               buffer_str.find(';') + 1,
-               buffer_str.size()));
+	  j = i = j + 1;
+	  
+	} else { j++; }
 
-         mapped_values->insert({station, temp});
-         i = ++j;
+  }
 
-      } else { j++; }
-   }
-   return mapped_values;
+  return mapped_values;
 }
 
 unordered_map<string, vector<float>> *
 threaded_computation(const unique_ptr<MappedFile> &mapped_file,
-                     unsigned int threads) {
-   size_t chunk = floor(mapped_file->fileInfo.st_size / (long long)(threads * 1.25));
-   vector<future<shared_ptr<unordered_multimap<string, float>>>> futures{};
-   auto futureResults = unordered_multimap<string, float>{};
-   unsigned long long begin = 0;
-   unsigned long long end = chunk;
-   char block[100];
-   string block_str;
-   for (size_t i = 1; i <= threads; ++i) {
-      auto &mem = mapped_file->map;
+					 const unsigned int threads) {
+  unsigned long long chunk = floor(mapped_file->fileInfo.st_size / (long long)(threads * 1.25));
+  vector<future<shared_ptr<unordered_multimap<string, float>>>> futures{};
+  auto futureResults = unordered_multimap<string, float>{};
+  unsigned long long begin = 0;
+  unsigned long long end = chunk;
+  char block[100];
+  string block_str;
+  for (size_t i = 1; i <= threads; ++i) {
+	auto mem = mapped_file->map;
 
-      if (i == threads) {
-         end = mapped_file->fileInfo.st_size;
-      } else {
-         if (mem[end] != '\n') {
-            while (mem[end] != '\n') {
-               end++;
-            }
-         }
-      }
+	if (i == threads) {
+	  end = mapped_file->fileInfo.st_size;
+	} else {
+	  while (end < mapped_file->fileInfo.st_size) {
+		if (mem[end] == '\n') { break; }
+		end++;
+	  }
+	}
 
-      memset(block, 0, 100);
-      memcpy(block, mem + begin, end - begin);
-      block_str = string(block);
+	memset(block, 0, 100);
+	memcpy(block, mem + begin, end - begin);
+	block_str = string(block);
 
-      futures.push_back(std::async(std::launch::async, [&mapped_file, begin, end] {
-         auto test = threaded_computation(mapped_file->map, begin, end);
-         return test;
-      }));
-      // end is a \n, so middle means +1 is the next char or if end then \0
-      begin = end + 1;
-      if ((end + chunk) < mapped_file->fileInfo.st_size) {
-         end = end + chunk;
-      } else {
-         end = mapped_file->fileInfo.st_size;
-      }
-   }
-   for (auto &future : futures) {
-      future.wait();
-   }
+	futures.push_back(std::async(std::launch::async, [&mapped_file, begin, end] {
+	  return threaded_computation(mapped_file->map, begin, end);
+	}));
+	// end is a \n, so middle means +1 is the next char or if end then \0
+	begin = end;
+	if ((end + 1) == '\0') {
+	  break;
+	}
 
-   for (auto &future : futures) {
-      auto result = future.get();
-      futureResults.merge(*result);
-   }
+	if ((end + chunk) < mapped_file->fileInfo.st_size) {
+	  end = end + chunk;
+	} else {
+	  end = mapped_file->fileInfo.st_size - 1;
+	}
+  }
+  for (auto &future : futures) {
+	future.wait();
+  }
 
-   auto results = new unordered_map<string, vector<float>>{};
+  for (auto &future : futures) {
+	auto result = future.get();
+	futureResults.merge(*result);
+  }
 
-//   for (auto &[k, v] : futureResults) {
-//      std::sort(v.begin(), v.end());
-//      (*results)[k] = vector<float>{v[0], v[floor(v.size() / 2)], v[v.size() - 1]};
-//   }
+  auto results = new unordered_map<string, vector<float>>{};
+//
+//  for (auto &result : futureResults) {
+////	  std::sort(result.begin(), v.end());
+////	  (*results)[k] = vector<float>{ v[0], v[floor(v.size() / 2)], v[v.size() - 1] };
+//  }
 
-   return results;
+  return results;
 }
 
 /**
@@ -173,96 +166,98 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
  */
 unordered_map<string, vector<float>> *
 sequential_computation(const unique_ptr<MappedFile> &mapped_file) {
-   return sequential_computation(mapped_file->map);
+  return sequential_computation(mapped_file->map);
 }
 
 unordered_map<string, vector<float>> *
 sequential_computation(char *mem) {
-   unordered_map<string, vector<float>> mapped_values = unordered_map<string, vector<float>>{};
-   auto *results = new unordered_map<string, vector<float>>{};
-   // i := start , j := end
-   int i = 0, j = 0;
-   string buffer_str;
-   char buffer_arr[100];
+  unordered_map<string, vector<float>> mapped_values = unordered_map<string, vector<float>>{};
+  auto *results = new unordered_map<string, vector<float>>{};
+  // i := start , j := end
+  int i = 0, j = 0;
+  string buffer_str;
+  char buffer_arr[100];
 
-   while (true) {
+  while (true) {
 
-      if (mem[j] == '\0') { break; }
-      if (mem[j] == '\n') {
+	if (mem[j] == '\0') { break; }
+	if (mem[j] == '\n') {
 
-         // GRR n is an offset. Spent so much time debugging ...
-         std::memcpy(buffer_arr, mem + i, j - i);
+	  // GRR n is an offset. Spent so much time debugging ...
+	  std::memcpy(buffer_arr, mem + i, j - i);
 
-         buffer_str = buffer_arr;
-         if (buffer_str.empty() || buffer_str == "\n") {
-            break;
-         }
-         string station;
-         float temp;
-         station = buffer_str.substr(0, buffer_str.find(';'));
-         temp = stof(buffer_str.substr(
-               buffer_str.find(';') + 1,
-               buffer_str.size()));
-         if (mapped_values.find(station) == mapped_values.end()) {
-            mapped_values[station].push_back(temp);
-         } else {
-            mapped_values[station] = vector<float>{temp};
-         }
-         i = ++j;
+	  buffer_str = buffer_arr;
+	  if (buffer_str.empty() || buffer_str == "\n") {
+		break;
+	  }
+	  string station;
+	  float temp;
+	  station = buffer_str.substr(0, buffer_str.find(';'));
+	  temp = stof(buffer_str.substr(
+		  buffer_str.find(';') + 1,
+		  buffer_str.size()));
+	  if (mapped_values.find(station) == mapped_values.end()) {
+		mapped_values[station].push_back(temp);
+	  } else {
+		mapped_values[station] = vector<float>{temp};
+	  }
+	  i = ++j;
 
-      } else { j++; }
-   }
+	} else { j++; }
+  }
 
-   for (auto [k, v] : mapped_values) {
-      std::sort(v.begin(), v.end());
-      (*results)[k] = vector<float>{v[0], v[ceil(v.size() / 2)], v[v.size() - 1]};
-   }
+  for (auto [k, v] : mapped_values) {
+	std::sort(v.begin(), v.end());
+	(*results)[k] = vector<float>{v[0], v[ceil(v.size() / 2)], v[v.size() - 1]};
+  }
 
-   return results;
+  return results;
 }
 
 ostream &operator<<(ostream &os, const unordered_map<string, vector<float>> &map) {
-   os << "{";
-   for (auto [k, v] : map) {
-      os << k << "=";
-      for (size_t i = 0; i < v.size(); ++i) {
-         os << v[i];
-         if (i == v.size() - 1) { os << ", "; } else { os << "/"; }
-      }
-   }
-   os << char(0x08) << char(0x08) << "}";
-   return os;
+  os << "{";
+  for (auto [k, v] : map) {
+	os << k << "=";
+	for (size_t i = 0; i < v.size(); ++i) {
+	  os << v[i];
+	  if (i == v.size() - 1) { os << ", "; }
+	  else { os << "/"; }
+	}
+  }
+  os << char(0x08) << char(0x08) << "}";
+  return os;
 }
 
 int main(int args, char **argv) {
 
-   string filepath;
-   filepath = (args > 1) ? argv[0]
-                         : "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-10.txt";
+  string filepath;
+  filepath = (args > 1) ? argv[0]
+						: "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-10.txt";
 
-   auto mapped_file = map_file2mem(filepath.c_str());
-   if (mapped_file == nullptr) {
-      perror("File mapping to memory failed.");
-      exit(0);
-   }
+  auto mapped_file = map_file2mem(filepath.c_str());
+  if (mapped_file == nullptr) {
+	perror("File mapping to memory failed.");
+	exit(0);
+  }
 
-   unordered_map<string, vector<float>> *results = nullptr;
+  unordered_map<string, vector<float>> *results = nullptr;
 
-   /**
-    * macro instead of a boolean variable to reduce the computation time.
-    * If variable then initialization and control flow check will add to the time
-    */
-   #ifdef DEBUG
-   auto start = chrono::high_resolution_clock::now();
+  /**
+   * macro instead of a boolean variable to reduce the computation time.
+   * If variable then initialization and control flow check will add to the time
+   */
+  #ifdef DEBUG
+  auto start = chrono::high_resolution_clock::now();
 //   results = sequential_computation(mapped_file);
-   results = threaded_computation(mapped_file, thread::hardware_concurrency());
-   auto end = chrono::high_resolution_clock::now();
-   #else
-   results = sequential_computation(mapped_file);
-   #endif
+//  results = threaded_computation(mapped_file, 1);
+  auto t = threaded_computation(mapped_file->map, 0, mapped_file->fileInfo.st_size);
+  auto end = chrono::high_resolution_clock::now();
+  #else
+  results = sequential_computation(mapped_file);
+  #endif
 
-   cout << *results;
-   delete results;
+//  cout << *results;
+//  delete results;
 
-   return 0;
+  return 0;
 }
