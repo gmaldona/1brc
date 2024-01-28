@@ -111,7 +111,7 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
                      unsigned int threads) {
    size_t chunk = floor(mapped_file->fileInfo.st_size / (long long)(threads * 1.25));
    vector<future<shared_ptr<unordered_multimap<string, float>>>> futures{};
-   auto futureResults = unordered_multimap<string, vector<float>>{};
+   auto futureResults = unordered_multimap<string, float>{};
    unsigned long long begin = 0;
    unsigned long long end = chunk;
    char block[100];
@@ -151,15 +151,15 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
 
    for (auto &future : futures) {
       auto result = future.get();
-      futureResults.insert(result->begin(), result->end());
+      futureResults.merge(*result);
    }
 
    auto results = new unordered_map<string, vector<float>>{};
 
-   for (auto &[k, v] : futureResults) {
-      std::sort(v.begin(), v.end());
-      (*results)[k] = vector<float>{v[0], v[floor(v.size() / 2)], v[v.size() - 1]};
-   }
+//   for (auto &[k, v] : futureResults) {
+//      std::sort(v.begin(), v.end());
+//      (*results)[k] = vector<float>{v[0], v[floor(v.size() / 2)], v[v.size() - 1]};
+//   }
 
    return results;
 }
