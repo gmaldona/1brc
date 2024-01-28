@@ -26,6 +26,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <iomanip>
 #include <thread>
 #include <execution>
@@ -70,13 +71,13 @@ unique_ptr<MappedFile> map_file2mem(const char *path) {
    return mappedFile;
 }
 
-unordered_multimap<string, float> *
+shared_ptr<unordered_multimap<string, float>>
 threaded_computation(const char *mem, const size_t &begin, const size_t &end) {
-   auto mapped_values = new unordered_multimap<string, float>{};
+   auto mapped_values = make_shared<unordered_multimap<string, float>>();
    string buffer_str;
    char buffer_arr[100];
-   int64_t i = begin;
-   int64_t j = begin;
+   long long i = begin;
+   long long j = begin;
 
    while (j <= end) {
 
@@ -105,32 +106,40 @@ threaded_computation(const char *mem, const size_t &begin, const size_t &end) {
    return mapped_values;
 }
 
-void threaded_computation(string path, unsigned int threads = std::thread::hardware_concurrency()) {
-   
-}
-
 unordered_map<string, vector<float>> *
 threaded_computation(const unique_ptr<MappedFile> &mapped_file,
                      unsigned int threads) {
-   size_t chunk = mapped_file->fileInfo.st_size / threads;
-   vector<future<unordered_multimap<string, float> *>> futures{};
+   size_t chunk = floor(mapped_file->fileInfo.st_size / (long long)(threads * 1.25));
+   vector<future<shared_ptr<unordered_multimap<string, float>>>> futures{};
    auto futureResults = unordered_multimap<string, vector<float>>{};
    unsigned long long begin = 0;
    unsigned long long end = chunk;
+   char block[100];
+   string block_str;
    for (size_t i = 1; i <= threads; ++i) {
       auto &mem = mapped_file->map;
-      if (mem[end] != '\n') {
-         while (mem[end] != '\n') {
-            end++;
+
+      if (i == threads) {
+         end = mapped_file->fileInfo.st_size;
+      } else {
+         if (mem[end] != '\n') {
+            while (mem[end] != '\n') {
+               end++;
+            }
          }
       }
 
-      futures.push_back(std::async(std::launch::async, [&] {
-         return threaded_computation(mapped_file->map, begin, end);
-      }));
+      memset(block, 0, 100);
+      memcpy(block, mem + begin, end - begin);
+      block_str = string(block);
 
+      futures.push_back(std::async(std::launch::async, [&] {
+         auto test = threaded_computation(mapped_file->map, begin, end);
+         return test;
+      }));
+      // end is a \n, so middle means +1 is the next char or if end then \0
       begin = end + 1;
-      if ((end + 1) + chunk < mapped_file->fileInfo.st_size) {
+      if ((end + chunk) < mapped_file->fileInfo.st_size) {
          end = end + chunk;
       } else {
          end = mapped_file->fileInfo.st_size;
@@ -229,7 +238,7 @@ int main(int args, char **argv) {
 
    string filepath;
    filepath = (args > 1) ? argv[0]
-                         : "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-10-unique-keys.txt";
+                         : "/Users/gregorymaldonado/bing/src/c++/cs547/1BRC/samples/measurements-10.txt";
 
    auto mapped_file = map_file2mem(filepath.c_str());
    if (mapped_file == nullptr) {

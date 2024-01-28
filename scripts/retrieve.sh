@@ -19,3 +19,12 @@
 git_root=$(git worktree list | cut -d' ' -f1)
 cp -r $git_root/1brc/src/test/resources/samples/ $git_root/samples/ 2>/dev/null
 echo "measurements*" > $git_root/samples/.gitignore
+
+git pull --recurse-submodules
+pushd $git_root/1brc
+  ./mvnw clean verify
+  # 12 GB file created 2 mins+
+  # Created file with 1,000,000,000 measurements in 261059 ms
+  ./create_measurements.sh 1000000000
+  ln -s measurements.txt $git_root/measurements.txt
+popd
