@@ -98,12 +98,13 @@ threaded_computation(const char *mem, const size_t &begin, const size_t &end) {
   return mapped_values;
 }
 
-unordered_map<string, vector<float>>
+unordered_map<string, float[3]>
 threaded_computation(const unique_ptr<MappedFile> &mapped_file,
 					 const unsigned int threads) {
   long long chunk = floor(mapped_file->fileInfo.st_size / (long long)(threads * 1.25));
   vector<future<shared_ptr<unordered_map<string, vector<float>>>>> futures{};
   auto futureResults = unordered_map<string, vector<float>>{};
+  auto results = unordered_map<string, float[3]>{};
   long long begin = 0;
   long long end = chunk;
   char block[100];
@@ -122,7 +123,6 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
 
 	memset(block, 0, 100);
 	memcpy(block, mem + begin, end - begin);
-	block_str = string(block);
 
 	futures.push_back(std::async(std::launch::async, [&mapped_file, begin, end] {
 	  return threaded_computation(mapped_file->map, begin, end);
@@ -133,11 +133,8 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
 	  break;
 	}
 
-	if ((end + chunk) < mapped_file->fileInfo.st_size) {
-	  end = end + chunk;
-	} else {
-	  end = mapped_file->fileInfo.st_size - 1;
-	}
+	end = ((end + chunk) < mapped_file->fileInfo.st_size) ? end + chunk
+														  : mapped_file->fileInfo.st_size - 1;
   }
   for (auto &future : futures) {
 	future.wait();
@@ -158,18 +155,12 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
   }
 
   for (auto &[key, vec] : futureResults) {
-//	std::sort(vec.begin(), vec.end());
-	auto min = vec[0];
-	auto med = vec[floor(vec.size() / 2)];
-	auto max = vec[vec.size() - 1];
-
-	vec.clear();
-	vec.push_back(min);
-	vec.push_back(med);
-	vec.push_back(max);
+	std::sort(vec.begin(), vec.end());
+	results[key][0] = vec[0];
+	results[key][1] = vec[floor(vec.size() / 2)];
+	results[key][2] = vec[vec.size() - 1];
   }
-
-  return futureResults;
+  return results;
 }
 
 /**
@@ -188,7 +179,6 @@ unordered_map<string, vector<float>>
 sequential_computation(char *mem) {
   unordered_map<string, vector<float>> mapped_values = unordered_map<string, vector<float>>{};
   auto results = unordered_map<string, vector<float>>{};
-  // i := start , j := end
   int i = 0, j = 0;
   string buffer_str;
   char buffer_arr[100];
@@ -229,12 +219,12 @@ sequential_computation(char *mem) {
   return results;
 }
 
-ostream &operator<<(ostream &os, const unordered_map<string, vector<float>> &map) {
+ostream &operator<<(ostream &os, const unordered_map<string, float[3]> &map) {
   os << "{";
   for (auto [k, v] : map) {
-	os << k << "=" << v[0] << '/' << v[1] << '/' << v[2] << " ";
+	os << k << "=" << v[0] << '/' << v[1] << '/' << v[2] << ", ";
   }
-  os << char(0x08) << "}";
+  os << char(0x08) << char(0x08) << "}";
   return os;
 }
 
@@ -250,7 +240,7 @@ int main(int args, char **argv) {
 	exit(0);
   }
 
-  unordered_map<string, vector<float>> results;
+  unordered_map<string, float[3]> results;
 
   /**
    * macro instead of a boolean variable to reduce the computation time.
@@ -268,8 +258,6 @@ int main(int args, char **argv) {
   #endif
 
   cout << results;
-//  delete results;
-//  delete mapped_file->map;
 
   return 0;
 }
