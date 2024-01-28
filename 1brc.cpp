@@ -133,7 +133,7 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
       memcpy(block, mem + begin, end - begin);
       block_str = string(block);
 
-      futures.push_back(std::async(std::launch::async, [&] {
+      futures.push_back(std::async(std::launch::async, [&mapped_file, begin, end] {
          auto test = threaded_computation(mapped_file->map, begin, end);
          return test;
       }));
