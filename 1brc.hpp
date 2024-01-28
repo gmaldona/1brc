@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <thread>
 #include <unordered_map>
 
 /**
@@ -23,17 +24,25 @@
 struct MappedFile {
    int fd;
    struct stat fileInfo;
-   char* map;
+   char *map;
    ~MappedFile();
 };
 
-std::unique_ptr<MappedFile> map_file2mem(const char* path);
+std::unique_ptr<MappedFile> map_file2mem(const char *path);
 
-std::unordered_map<std::string, ::std::vector<float>>*
-parallelized_computation(const std::unique_ptr<MappedFile>& mapped_file);
+//void threaded_computation(const char *mem,
+//                          const size_t &begin,
+//                          const size_t &end,
+//                          const std::shared_ptr<tbb::concurrent_unordered_map<std::string,
+//                                                                              tbb::concurrent_vector<float>>> &results);
 
-std::unordered_map<std::string, std::vector<float>>*
-sequential_computation(char* mem);
+//std::shared_ptr<tbb::concurrent_unordered_map<std::string,
+//                                              tbb::concurrent_vector<float>>>
+//threaded_computation(const std::unique_ptr<MappedFile> &mapped_file,
+//                     unsigned int threads = std::thread::hardware_concurrency());
 
-std::ostream&
-operator<<(std::ostream& os,const std::unordered_map<std::string, std::vector<float>>& map);
+std::unordered_map<std::string, std::vector<float>> *
+sequential_computation(char *mem);
+
+std::ostream &
+operator<<(std::ostream &os, const std::unordered_map<std::string, std::vector<float>> &map);
