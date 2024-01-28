@@ -68,9 +68,9 @@ unique_ptr<MappedFile> map_file2mem(const char *path) {
   return mappedFile;
 }
 
-shared_ptr<unordered_multimap<string, float>>
+shared_ptr<unordered_map<string, vector<float>>>
 threaded_computation(const char *mem, const size_t &begin, const size_t &end) {
-  auto mapped_values = make_shared<unordered_multimap<string, float>>();
+  auto mapped_values = make_shared<unordered_map<string, vector<float>>>();
 
   char buffer_arr[100];
   string buffer_str;
@@ -86,25 +86,26 @@ threaded_computation(const char *mem, const size_t &begin, const size_t &end) {
 	  string station = buffer_str.substr(0, buffer_str.find(';'));
 	  float temp = stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
 
-	  mapped_values->insert({station, temp});
+	  if (mapped_values->find(station) == mapped_values->end()) {
+		(*mapped_values)[station].push_back(temp);
+	  } else {
+		(*mapped_values)[station] = vector<float>{temp};
+	  }
 
 	  j = i = j + 1;
-	  
 	} else { j++; }
-
   }
-
   return mapped_values;
 }
 
-unordered_map<string, vector<float>> *
+unordered_map<string, vector<float>>
 threaded_computation(const unique_ptr<MappedFile> &mapped_file,
 					 const unsigned int threads) {
-  unsigned long long chunk = floor(mapped_file->fileInfo.st_size / (long long)(threads * 1.25));
-  vector<future<shared_ptr<unordered_multimap<string, float>>>> futures{};
-  auto futureResults = unordered_multimap<string, float>{};
-  unsigned long long begin = 0;
-  unsigned long long end = chunk;
+  long long chunk = floor(mapped_file->fileInfo.st_size / (long long)(threads * 1.25));
+  vector<future<shared_ptr<unordered_map<string, vector<float>>>>> futures{};
+  auto futureResults = unordered_map<string, vector<float>>{};
+  long long begin = 0;
+  long long end = chunk;
   char block[100];
   string block_str;
   for (size_t i = 1; i <= threads; ++i) {
@@ -127,7 +128,7 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
 	  return threaded_computation(mapped_file->map, begin, end);
 	}));
 	// end is a \n, so middle means +1 is the next char or if end then \0
-	begin = end;
+	begin = end + 1;
 	if ((end + 1) == '\0') {
 	  break;
 	}
@@ -144,17 +145,31 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
 
   for (auto &future : futures) {
 	auto result = future.get();
-	futureResults.merge(*result);
+
+	// TODO: this could probably be a concurrent hash map
+	for (auto &[key, vec] : *result) {
+	  if (futureResults.find(key) == futureResults.end()) {
+		futureResults.insert({key, vec});
+	  } else {
+		auto &grand_vector = futureResults[key];
+		grand_vector.insert(grand_vector.end(), vec.begin(), vec.end());
+	  }
+	}
   }
 
-  auto results = new unordered_map<string, vector<float>>{};
-//
-//  for (auto &result : futureResults) {
-////	  std::sort(result.begin(), v.end());
-////	  (*results)[k] = vector<float>{ v[0], v[floor(v.size() / 2)], v[v.size() - 1] };
-//  }
+  for (auto &[key, vec] : futureResults) {
+//	std::sort(vec.begin(), vec.end());
+	auto min = vec[0];
+	auto med = vec[floor(vec.size() / 2)];
+	auto max = vec[vec.size() - 1];
 
-  return results;
+	vec.clear();
+	vec.push_back(min);
+	vec.push_back(med);
+	vec.push_back(max);
+  }
+
+  return futureResults;
 }
 
 /**
@@ -164,15 +179,15 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
  * Sorting on the data. This is fine for small amount of data but once 1 B, then
  * not really reliable.
  */
-unordered_map<string, vector<float>> *
+unordered_map<string, vector<float>>
 sequential_computation(const unique_ptr<MappedFile> &mapped_file) {
   return sequential_computation(mapped_file->map);
 }
 
-unordered_map<string, vector<float>> *
+unordered_map<string, vector<float>>
 sequential_computation(char *mem) {
   unordered_map<string, vector<float>> mapped_values = unordered_map<string, vector<float>>{};
-  auto *results = new unordered_map<string, vector<float>>{};
+  auto results = unordered_map<string, vector<float>>{};
   // i := start , j := end
   int i = 0, j = 0;
   string buffer_str;
@@ -208,7 +223,7 @@ sequential_computation(char *mem) {
 
   for (auto [k, v] : mapped_values) {
 	std::sort(v.begin(), v.end());
-	(*results)[k] = vector<float>{v[0], v[ceil(v.size() / 2)], v[v.size() - 1]};
+	results[k] = vector<float>{v[0], v[ceil(v.size() / 2)], v[v.size() - 1]};
   }
 
   return results;
@@ -217,14 +232,9 @@ sequential_computation(char *mem) {
 ostream &operator<<(ostream &os, const unordered_map<string, vector<float>> &map) {
   os << "{";
   for (auto [k, v] : map) {
-	os << k << "=";
-	for (size_t i = 0; i < v.size(); ++i) {
-	  os << v[i];
-	  if (i == v.size() - 1) { os << ", "; }
-	  else { os << "/"; }
-	}
+	os << k << "=" << v[0] << '/' << v[1] << '/' << v[2] << " ";
   }
-  os << char(0x08) << char(0x08) << "}";
+  os << char(0x08) << "}";
   return os;
 }
 
@@ -240,7 +250,7 @@ int main(int args, char **argv) {
 	exit(0);
   }
 
-  unordered_map<string, vector<float>> *results = nullptr;
+  unordered_map<string, vector<float>> results;
 
   /**
    * macro instead of a boolean variable to reduce the computation time.
@@ -248,16 +258,18 @@ int main(int args, char **argv) {
    */
   #ifdef DEBUG
   auto start = chrono::high_resolution_clock::now();
-//   results = sequential_computation(mapped_file);
-//  results = threaded_computation(mapped_file, 1);
-  auto t = threaded_computation(mapped_file->map, 0, mapped_file->fileInfo.st_size);
+  results = threaded_computation(mapped_file, thread::hardware_concurrency());
+//  results = sequential_computation(mapped_file);
   auto end = chrono::high_resolution_clock::now();
+  auto elapsed_time = end - start;
+  cout << chrono::duration<double, nano>(elapsed_time).count() << " ns" << '\n';
   #else
   results = sequential_computation(mapped_file);
   #endif
 
-//  cout << *results;
+  cout << results;
 //  delete results;
+//  delete mapped_file->map;
 
   return 0;
 }

@@ -22,10 +22,10 @@
  * a deconstruct function to unmap memory.
  */
 struct MappedFile {
-   int fd;
-   struct stat fileInfo;
-   char *map;
-   ~MappedFile();
+  int fd;
+  struct stat fileInfo;
+  char *map;
+  ~MappedFile();
 };
 
 std::unique_ptr<MappedFile> map_file2mem(const char *path);
@@ -41,7 +41,7 @@ std::unique_ptr<MappedFile> map_file2mem(const char *path);
 //threaded_computation(const std::unique_ptr<MappedFile> &mapped_file,
 //                     unsigned int threads = std::thread::hardware_concurrency());
 
-std::unordered_map<std::string, std::vector<float>> *
+std::unordered_map<std::string, std::vector<float>>
 sequential_computation(char *mem);
 
 std::ostream &
