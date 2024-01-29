@@ -94,9 +94,9 @@ parallel_read_sequential_computation(const char *mem, const size_t &begin, const
  * @param threads
  * @return
  */
-std::unordered_map<std::string, float[3]> *
-parallel_read_computation(const std::unique_ptr<MappedFile> &mapped_file,
-						  unsigned int threads = std::thread::hardware_concurrency());
+//std::unordered_map<std::string, float[3]> *
+//parallel_read_computation(const std::unique_ptr<MappedFile> &mapped_file,
+//						  unsigned int threads = std::thread::hardware_concurrency());
 
 std::ostream &
 operator<<(std::ostream &os, const std::unordered_map<std::string, std::vector<float>> &map);

@@ -68,13 +68,13 @@ unique_ptr<MappedFile> map_file2mem(const char *path) {
   return mappedFile;
 }
 
-unordered_map<string, float[3]> *
-parallel_read_computation(const unique_ptr<MappedFile> &mapped_file,
-						  unsigned int threads) {
-  auto results = new unordered_map<string, float[3]>{};
-
-  return results;
-}
+//unordered_map<string, float[3]> *
+//parallel_read_computation(const unique_ptr<MappedFile> &mapped_file,
+//						  unsigned int threads) {
+//  auto results = new unordered_map<string, float[3]>{};
+//
+//  return results;
+//}
 
 unordered_map<string, vector<float>> *
 parallel_read_sequential_computation(const char *mem, const size_t &begin, const size_t &end) {
@@ -106,13 +106,13 @@ parallel_read_sequential_computation(const char *mem, const size_t &begin, const
   return mapped_values;
 }
 
-unordered_map<string, float[3]>
+unordered_map<string, float[3]>*
 threaded_computation(const unique_ptr<MappedFile> &mapped_file,
 					 unsigned int threads) {
   long long chunk = floor(mapped_file->fileInfo.st_size / (long long)(threads * 1.25));
   vector<future<unordered_map<string, vector<float>> *>> futures{};
   auto futureResults = unordered_map<string, vector<float>>{};
-  auto results = unordered_map<string, float[3]>{};
+  auto results = new unordered_map<string, float[3]>{};
   long long begin = 0;
   long long end = chunk;
   char block[100];
@@ -165,9 +165,9 @@ threaded_computation(const unique_ptr<MappedFile> &mapped_file,
 
   for (auto &[key, vec] : futureResults) {
 	std::sort(vec.begin(), vec.end());
-	results[key][0] = vec[0];
-	results[key][1] = vec[floor(vec.size() / 2)];
-	results[key][2] = vec[vec.size() - 1];
+	(*results)[key][0] = vec[0];
+	(*results)[key][1] = vec[floor(vec.size() / 2)];
+	(*results)[key][2] = vec[vec.size() - 1];
   }
   return results;
 }
@@ -246,8 +246,8 @@ int main(int args, char **argv) {
    */
   #ifdef DEBUG
   auto start = chrono::high_resolution_clock::now();
-  results = parallel_read_computation(mapped_file, thread::hardware_concurrency());
-//  results = threaded_computation(mapped_file, thread::hardware_concurrency());
+//  results = parallel_read_computation(mapped_file, thread::hardware_concurrency());
+  results = threaded_computation(mapped_file, thread::hardware_concurrency());
 //  results = sequential_computation(mapped_file->map);
   auto end = chrono::high_resolution_clock::now();
   auto elapsed_time = end - start;
