@@ -10,22 +10,24 @@
  * Sciences, Binghamton University.
  */
 
+#include <sys/stat.h>
+
 #include <memory>
 #include <string>
-#include <vector>
 #include <thread>
 #include <unordered_map>
-
+#include <vector>
+;
 /**
-* A MappedFile is a structure that holds metadata about an memory mapped file.
-* The true purpose of containerizing these values was to take advantage of
+ * A MappedFile is a structure that holds metadata about an memory mapped file.
+ * The true purpose of containerizing these values was to take advantage of
  * a deconstruct function to unmap memory.
  */
 struct MappedFile {
-  int fd;
-  struct stat fileInfo;
-  char *map;
-  ~MappedFile();
+   int fd;
+   struct stat fileInfo;
+   char *map;
+   ~MappedFile();
 };
 
 /**
@@ -46,7 +48,7 @@ std::unique_ptr<MappedFile> map_file2mem(const char *path);
  * threaded computation share similar runtimes, sometimes even beating the
  * paralellized implemation due to the overhead of spinning up hardware threads.
  */
-std::unordered_map<std::string, float[3]>
+std::unordered_map<std::string, float[3]> *
 sequential_computation(char *mem);
 
 /**
@@ -66,9 +68,9 @@ sequential_computation(char *mem);
  * STL containers have an overhead of spinning up.
  *
  */
-std::unordered_map<std::string, float[3]>
+std::unordered_map<std::string, float[3]> *
 parallel_read_sequential_computation(const std::unique_ptr<MappedFile> &mapped_file,
-									 unsigned int threads = std::thread::hardware_concurrency());
+                                     unsigned int threads = std::thread::hardware_concurrency());
 
 /**
  * When a future is spawned, this is the function that is being performed within
@@ -94,9 +96,6 @@ parallel_read_sequential_computation(const char *mem, const size_t &begin, const
  * @param threads
  * @return
  */
-//std::unordered_map<std::string, float[3]> *
-//parallel_read_computation(const std::unique_ptr<MappedFile> &mapped_file,
+// std::unordered_map<std::string, float[3]> *
+// parallel_read_computation(const std::unique_ptr<MappedFile> &mapped_file,
 //						  unsigned int threads = std::thread::hardware_concurrency());
-
-std::ostream &
-operator<<(std::ostream &os, const std::unordered_map<std::string, std::vector<float>> &map);
