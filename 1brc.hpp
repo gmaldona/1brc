@@ -12,6 +12,7 @@
 
 #include <sys/stat.h>
 
+#include <future>
 #include <memory>
 #include <string>
 #include <thread>
@@ -84,13 +85,10 @@ std::unordered_map<std::string, float[3]> *sequential_computation(char *mem);
  * still not as good as it __could__ be... Parallelizing the computation
  * would be most ideal.
  *
- * CONSIDER: switching away from STL and using arrays where possible.
- * STL containers have an overhead of spinning up.
- *
  */
-std::unordered_map<std::string, float[3]> *parallel_read_sequential_computation(
+std::unordered_map<std::string, std::vector<double>> *OBRC_futures(
     const std::unique_ptr<MappedFile> &mapped_file,
-    unsigned int threads = std::thread::hardware_concurrency());
+    unsigned int hw_threads = std::thread::hardware_concurrency());
 
 /**
  * When a future is spawned, this is the function that is being performed
@@ -106,9 +104,9 @@ std::unordered_map<std::string, float[3]> *parallel_read_sequential_computation(
  * significantly speeds up the performance. One dry run: ~ 3.0e6 ns down to
  * ~ 1.5e6 ns
  */
-std::unordered_map<std::string, std::vector<float>> *
-parallel_read_sequential_computation(const char *mem, const size_t &begin,
-                                     const size_t &end);
+void OBRC_futureworker(
+    char *mem, long long begin, long long end,
+    std::promise<std::unordered_map<std::string, std::vector<double>> *> prom);
 
 // void OBRC_concurworker(
 //     char *memmap, long long begin, long long end,

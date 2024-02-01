@@ -20,13 +20,13 @@ all: $(TARGET)
 	$(RM) *.o
 
 $(TARGET): $(TARGET).o
-	$(CC) $(CFLAGS) -o build/$(TARGET) $(TARGET).cpp -pthread -lstdc++
+	$(CC) $(CFLAGS) -o build/$(TARGET) $(TARGET).cpp -pthread -lstdc++ -ltbb
 
 $(TARGET).o: .pre $(TARGET).cpp $(TARGET).hpp
-	$(CC) $(CFLAGS) -c $(TARGET).cpp -pthread -lstdc++
+	$(CC) $(CFLAGS) -c $(TARGET).cpp -pthread -lstdc++ -ltbb
 
 .post:
 	chmod +x build/$(TARGET)
 
 clean:
-	$(RM) build/$(TARGET)
+	$(RM) build/$(TARGET) *.out

@@ -166,9 +166,9 @@ unordered_map<string, vector<double>>* OBRC_concurmap(
   return new unordered_map<string, vector<double>>{};
 }
 
-void parallel_computation(
+void OBRC_futureworker(
     char* mem, long long begin, long long end,
-    promise<unordered_map<string, vector<double>>*> prom) {
+    std::promise<std::unordered_map<std::string, std::vector<double>>*> prom) {
   auto* mapped_values = new unordered_map<string, vector<double>>();
 
   char buffer_arr[100];
@@ -200,8 +200,8 @@ void parallel_computation(
   prom.set_value(mapped_values);
 }
 
-unordered_map<string, vector<double>>* parallel_read_computation(
-    const unique_ptr<MappedFile>& mapped_file, unsigned int hw_threads) {
+std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
+    const std::unique_ptr<MappedFile>& mapped_file, unsigned int hw_threads) {
   // TODO: main thread is just waiting around, give that thread a task as
   // well.
   long long chunk = floor(mapped_file->fileInfo.st_size / hw_threads);
@@ -227,7 +227,7 @@ unordered_map<string, vector<double>>* parallel_read_computation(
     promise<unordered_map<string, vector<double>>*> prom;
 
     futures.push_back(prom.get_future());
-    threads.push_back(thread(parallel_computation, mapped_file->map, begin, end,
+    threads.push_back(thread(OBRC_futureworker, mapped_file->map, begin, end,
                              std::move(prom)));
 
     if (mapped_file->map[end + 1] == '\0') {
@@ -298,8 +298,7 @@ int main(void) {
   unordered_map<string, vector<double>>* results;
 
   auto start = std::chrono::high_resolution_clock::now();
-  results =
-      parallel_read_computation(mapped_file, thread::hardware_concurrency());
+  results = OBRC_futures(mapped_file, thread::hardware_concurrency());
   // results = OBRC_concurmap(*mapped_file, thread::hardware_concurrency());
   // sequential_computation(mapped_file->map);
   auto end = chrono::high_resolution_clock::now();

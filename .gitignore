@@ -6,4 +6,7 @@ build/
 
 CMakeLists.txt
 
+*.out
+.out/
+
 **/measurements*
