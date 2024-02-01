@@ -17,22 +17,22 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
-;
+
 /**
  * A MappedFile is a structure that holds metadata about an memory mapped file.
  * The true purpose of containerizing these values was to take advantage of
  * a deconstruct function to unmap memory.
  */
 struct MappedFile {
-   int fd;
-   struct stat fileInfo;
-   char *map;
-   ~MappedFile();
+  int fd;
+  struct stat fileInfo;
+  char *map;
+  ~MappedFile();
 };
 
 /**
- * Uses mmap to map a file to memory. This is the best way to do parallel computation
- * on a buffer due to the fact of divide and conquer on the memory.
+ * Uses mmap to map a file to memory. This is the best way to do parallel
+ * computation on a buffer due to the fact of divide and conquer on the memory.
  */
 std::unique_ptr<MappedFile> map_file2mem(const char *path);
 
@@ -48,8 +48,7 @@ std::unique_ptr<MappedFile> map_file2mem(const char *path);
  * threaded computation share similar runtimes, sometimes even beating the
  * paralellized implemation due to the overhead of spinning up hardware threads.
  */
-std::unordered_map<std::string, float[3]> *
-sequential_computation(char *mem);
+std::unordered_map<std::string, float[3]> *sequential_computation(char *mem);
 
 /**
  * Parallelized Read, Sequential Computation (Second Attempt):
@@ -68,9 +67,9 @@ sequential_computation(char *mem);
  * STL containers have an overhead of spinning up.
  *
  */
-std::unordered_map<std::string, float[3]> *
-parallel_read_sequential_computation(const std::unique_ptr<MappedFile> &mapped_file,
-                                     unsigned int threads = std::thread::hardware_concurrency());
+std::unordered_map<std::string, float[3]> *parallel_read_sequential_computation(
+    const std::unique_ptr<MappedFile> &mapped_file,
+    unsigned int threads = std::thread::hardware_concurrency());
 
 /**
  * When a future is spawned, this is the function that is being performed within
@@ -82,20 +81,21 @@ parallel_read_sequential_computation(const std::unique_ptr<MappedFile> &mapped_f
  * @return pointer to the map of results of the assigned chunk.
  *
  * NOTE: Using a pointer because when returning, it returns a copy of the values
- * within the map. If a pointer is used, then no copy is needed and significantly
- * speeds up the performance.
- * 		One dry run: ~ 3.0e6 ns down to ~ 1.5e6 ns
+ * within the map. If a pointer is used, then no copy is needed and
+ * significantly speeds up the performance. One dry run: ~ 3.0e6 ns down to
+ * ~ 1.5e6 ns
  */
 std::unordered_map<std::string, std::vector<float>> *
-parallel_read_sequential_computation(const char *mem, const size_t &begin, const size_t &end);
+parallel_read_sequential_computation(const char *mem, const size_t &begin,
+                                     const size_t &end);
 
-/**
- * Parallel Read, Parallel Computation (Third Attempt):
- *
- * @param mapped_file
- * @param threads
- * @return
- */
-// std::unordered_map<std::string, float[3]> *
-// parallel_read_computation(const std::unique_ptr<MappedFile> &mapped_file,
-//						  unsigned int threads = std::thread::hardware_concurrency());
+// void OBRC_concurworker(
+//     char *memmap, long long begin, long long end,
+//     std::shared_ptr<concurrent_hash_map<std::string,
+//     concurrent_vector<float>>>
+//         res);
+
+// std::shared_ptr<concurrent_hash_map<std::string, concurrent_vector<float>>>
+// OBRC_concurmap(const struct OBRC_memmap &memmap,
+//                unsigned int hw_threads =
+//                std::thread::hardware_concurrency());

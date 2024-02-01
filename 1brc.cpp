@@ -16,9 +16,10 @@
  * solving this task!
  */
 
-#include "1brc.hpp"
+#include "./1brc.hpp"
 
 #include <fcntl.h>
+#include <oneapi/tbb.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -26,15 +27,20 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <fstream>
 #include <functional>
 #include <future>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
+#include <thread>
 
 #define DEBUG false
 
 using namespace std;
+
+using namespace oneapi::tbb::detail::d1;
+using namespace oneapi::tbb::detail::d2;
 
 MappedFile::~MappedFile() {
   if (munmap(map, fileInfo.st_size) == -1) {
@@ -42,6 +48,30 @@ MappedFile::~MappedFile() {
     exit(1);
   }
 }
+
+class OBRC {
+ public:
+  struct less {
+    bool operator()(const std::pair<string, float>& x,
+                    const std::pair<string, float>& y) const {
+      return x.second < y.second;
+    }
+  };
+
+  struct greater {
+    bool operator()(const std::pair<string, float>& x,
+                    const std::pair<string, float>& y) const {
+      return x.second > y.second;
+    }
+
+    struct accumulate {
+      float operator()(const std::pair<string, float>& x,
+                       const std::pair<string, float>& y) const {
+        return x.second + y.second;
+      }
+    };
+  };
+};
 
 /*
  * Map a file to memory to faster reads.
@@ -63,6 +93,64 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
     return nullptr;
   }
   return mappedFile;
+}
+
+void OBRC_concurworker(
+    char* memmap, long long begin, long long end,
+    std::shared_ptr<concurrent_multimap<std::string, float>> res) {}
+
+unordered_map<string, vector<double>>* OBRC_concurmap(
+    const struct MappedFile& mapped_file,
+    unsigned int hw_threads = std::thread::hardware_concurrency()) {
+  auto map = make_shared<concurrent_multimap<string, float>>();
+
+  long long chunk = floor(mapped_file.fileInfo.st_size / hw_threads);
+  vector<future<unordered_map<string, vector<double>>*>> futures{};
+  vector<thread> threads{};
+
+  long long begin = 0;
+  long long end = chunk;
+
+  for (unsigned int i = 1; i <= hw_threads; ++i) {
+    if (i == hw_threads) {
+      end = mapped_file.fileInfo.st_size - 1;
+    } else {
+      while (end < mapped_file.fileInfo.st_size) {
+        if (mapped_file.map[end] == '\n') {
+          break;
+        }
+        end++;
+      }
+    }
+
+    threads.push_back(
+        thread(OBRC_concurworker, mapped_file.map, begin, end, map));
+
+    if (mapped_file.map[end + 1] == '\0') {
+      break;  // handles spawning extra threads.
+    }
+    begin = end + 1;  // we know from like 123, that end is '\n'.
+
+    end = ((end + chunk) < mapped_file.fileInfo.st_size)
+              ? end + chunk
+              : mapped_file.fileInfo.st_size - 1;
+
+    for (auto& t : threads) {
+      t.join();
+    }
+    auto* res = new unordered_map<string, vector<double>*>{};
+
+    for (auto key_it = map->begin(), keyEnd = map->end(); key_it != keyEnd;
+         key_it = map->upper_bound(key_it->first)) {
+      auto& key = key_it->first;
+      auto [value_itr, value_end] = map->equal_range(key);
+      auto& t = *value_itr;
+      auto* stats = new vector<double>{};
+
+      auto t = min_element(value_itr, value_end, 0.0f,
+                           [](std::pair<string, float>& p) {});
+    }
+  }
 }
 
 void parallel_computation(
@@ -101,7 +189,8 @@ void parallel_computation(
 
 unordered_map<string, vector<double>>* parallel_read_computation(
     const unique_ptr<MappedFile>& mapped_file, unsigned int threads) {
-  // TODO: main thread is just waiting around, give that thread a task as well.
+  // TODO: main thread is just waiting around, give that thread a task as
+  // well.
   long long chunk = floor(mapped_file->fileInfo.st_size / threads);
   vector<future<unordered_map<string, vector<double>>*>> futures{};
   vector<thread> threadArr{};
@@ -159,8 +248,17 @@ unordered_map<string, vector<double>>* parallel_read_computation(
   auto* results = new unordered_map<string, vector<double>>{};
   for (auto& [key, vec] : futureResults) {
     double min = (double)*min_element(vec.begin(), vec.end());
-    double avg =
-        (double)accumulate(vec.begin(), vec.end(), 0) / (double)vec.size();
+    double avg = (double)tbb::detail::d1::parallel_reduce(
+                     tbb::blocked_range<double>(0, vec.size()), 0.0,
+                     [&](tbb::blocked_range<double> r, double running_total) {
+                       for (int i = r.begin(); i < r.end(); ++i) {
+                         running_total += vec[i];
+                       }
+
+                       return running_total;
+                     },
+                     std::plus<double>()) /
+                 (double)vec.size();
     double max = (double)*max_element(vec.begin(), vec.end());
     vector<double> stats{min, avg, max};
     results->insert({key, stats});
@@ -170,7 +268,9 @@ unordered_map<string, vector<double>>* parallel_read_computation(
 }
 
 int main(void) {
-  string filepath = "measurements.txt";
+  string filepath =
+      "/home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/"
+      "measurements.txt";
   // if (args > 1) {
   //    filepath = argv[1];
   // } else {
@@ -211,7 +311,9 @@ int main(void) {
   }
   printf("%c%c}", char(0x08), char(0x08));
 
-  // delete results;
+  ofstream res;
+  res.open("res.txt");
+  delete results;
 
   return 0;
 }
