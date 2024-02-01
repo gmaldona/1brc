@@ -16,7 +16,7 @@
  * solving this task!
  */
 
-#include "./1brc.hpp"
+#include "1brc.hpp"
 
 #include <fcntl.h>
 #include <oneapi/tbb.h>
@@ -35,12 +35,25 @@
 #include <numeric>
 #include <thread>
 
-#define DEBUG false
-
 using namespace std;
 
 using namespace oneapi::tbb::detail::d1;
 using namespace oneapi::tbb::detail::d2;
+
+bool OBRC::less::operator()(const std::pair<std::string, float>& x,
+                            const std::pair<std::string, float>& y) const {
+  return x.second < y.second;
+}
+
+bool OBRC::greater::operator()(const std::pair<string, float>& x,
+                               const std::pair<string, float>& y) const {
+  return x.second > y.second;
+}
+
+float OBRC::accumulate::operator()(const std::pair<string, float>& x,
+                                   const std::pair<string, float>& y) const {
+  return x.second + y.second;
+}
 
 MappedFile::~MappedFile() {
   if (munmap(map, fileInfo.st_size) == -1) {
@@ -48,30 +61,6 @@ MappedFile::~MappedFile() {
     exit(1);
   }
 }
-
-class OBRC {
- public:
-  struct less {
-    bool operator()(const std::pair<string, float>& x,
-                    const std::pair<string, float>& y) const {
-      return x.second < y.second;
-    }
-  };
-
-  struct greater {
-    bool operator()(const std::pair<string, float>& x,
-                    const std::pair<string, float>& y) const {
-      return x.second > y.second;
-    }
-
-    struct accumulate {
-      float operator()(const std::pair<string, float>& x,
-                       const std::pair<string, float>& y) const {
-        return x.second + y.second;
-      }
-    };
-  };
-};
 
 /*
  * Map a file to memory to faster reads.
@@ -97,15 +86,34 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
 
 void OBRC_concurworker(
     char* memmap, long long begin, long long end,
-    std::shared_ptr<concurrent_multimap<std::string, float>> res) {}
+    std::shared_ptr<concurrent_multimap<std::string, float>> res) {
+  char buffer_arr[100];
+  string buffer_str;
+  long long i = begin;
+  long long j = begin;
+
+  while (j <= end) {
+    if (memmap[j] == '\n') {
+      memset(buffer_arr, 0, 100);
+      std::memcpy(buffer_arr, memmap + i, j - i);
+      buffer_str = buffer_arr;
+
+      string station = buffer_str.substr(0, buffer_str.find(';'));
+      double temp =
+          stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
+      res->insert({station, temp});
+
+      j = i = j + 1;
+    } else {
+      j++;
+    }
+  }
+}
 
 unordered_map<string, vector<double>>* OBRC_concurmap(
-    const struct MappedFile& mapped_file,
-    unsigned int hw_threads = std::thread::hardware_concurrency()) {
+    const struct MappedFile& mapped_file, unsigned int hw_threads) {
   auto map = make_shared<concurrent_multimap<string, float>>();
-
   long long chunk = floor(mapped_file.fileInfo.st_size / hw_threads);
-  vector<future<unordered_map<string, vector<double>>*>> futures{};
   vector<thread> threads{};
 
   long long begin = 0;
@@ -123,8 +131,11 @@ unordered_map<string, vector<double>>* OBRC_concurmap(
       }
     }
 
-    threads.push_back(
-        thread(OBRC_concurworker, mapped_file.map, begin, end, map));
+    task_group tasks;
+
+    tasks.run([&]() { OBRC_concurworker(mapped_file.map, begin, end, map); });
+    // threads.push_back(
+    // thread(OBRC_concurworker, ));
 
     if (mapped_file.map[end + 1] == '\0') {
       break;  // handles spawning extra threads.
@@ -135,22 +146,24 @@ unordered_map<string, vector<double>>* OBRC_concurmap(
               ? end + chunk
               : mapped_file.fileInfo.st_size - 1;
 
-    for (auto& t : threads) {
-      t.join();
-    }
-    auto* res = new unordered_map<string, vector<double>*>{};
+    tasks.wait();
 
-    for (auto key_it = map->begin(), keyEnd = map->end(); key_it != keyEnd;
-         key_it = map->upper_bound(key_it->first)) {
-      auto& key = key_it->first;
-      auto [value_itr, value_end] = map->equal_range(key);
-      auto& t = *value_itr;
-      auto* stats = new vector<double>{};
+    // for (auto& t : threads) {
+    //   t.join();
+    // }
+    // auto* res = new unordered_map<string, vector<double>*>{};
 
-      auto t = min_element(value_itr, value_end, 0.0f,
-                           [](std::pair<string, float>& p) {});
-    }
+    // // OBRC obrc;
+    // for (auto key_it = map->begin(), keyEnd = map->end(); key_it != keyEnd;
+    //      key_it = map->upper_bound(key_it->first)) {
+    //   auto& key = key_it->first;
+    //   auto [value_itr, value_end] = map->equal_range(key);
+    //   auto* stats = new vector<double>{};
+
+    //   auto eeee = min_element(value_itr, value_end);
+    // }
   }
+  return new unordered_map<string, vector<double>>{};
 }
 
 void parallel_computation(
@@ -160,8 +173,8 @@ void parallel_computation(
 
   char buffer_arr[100];
   string buffer_str;
-  unsigned long long i = begin;
-  unsigned long long j = begin;
+  long long i = begin;
+  long long j = begin;
 
   while (j <= end) {
     if (mem[j] == '\n') {
@@ -188,19 +201,19 @@ void parallel_computation(
 }
 
 unordered_map<string, vector<double>>* parallel_read_computation(
-    const unique_ptr<MappedFile>& mapped_file, unsigned int threads) {
+    const unique_ptr<MappedFile>& mapped_file, unsigned int hw_threads) {
   // TODO: main thread is just waiting around, give that thread a task as
   // well.
-  long long chunk = floor(mapped_file->fileInfo.st_size / threads);
+  long long chunk = floor(mapped_file->fileInfo.st_size / hw_threads);
   vector<future<unordered_map<string, vector<double>>*>> futures{};
-  vector<thread> threadArr{};
+  vector<thread> threads{};
   auto futureResults = unordered_map<string, vector<double>>{};
 
   long long begin = 0;
   long long end = chunk;
 
-  for (size_t i = 1; i <= threads; ++i) {
-    if (i == threads) {
+  for (size_t i = 1; i <= hw_threads; ++i) {
+    if (i == hw_threads) {
       end = mapped_file->fileInfo.st_size - 1;
     } else {
       while (end < mapped_file->fileInfo.st_size) {
@@ -214,8 +227,8 @@ unordered_map<string, vector<double>>* parallel_read_computation(
     promise<unordered_map<string, vector<double>>*> prom;
 
     futures.push_back(prom.get_future());
-    threadArr.push_back(thread(parallel_computation, mapped_file->map, begin,
-                               end, std::move(prom)));
+    threads.push_back(thread(parallel_computation, mapped_file->map, begin, end,
+                             std::move(prom)));
 
     if (mapped_file->map[end + 1] == '\0') {
       break;  // handles spawning extra threads.
@@ -225,14 +238,12 @@ unordered_map<string, vector<double>>* parallel_read_computation(
     end = ((end + chunk) < mapped_file->fileInfo.st_size)
               ? end + chunk
               : mapped_file->fileInfo.st_size - 1;
-
-    // promises.push_back(prom);
   }
 
-  for (int i = 0; i < threads; ++i) {
+  for (unsigned int i = 0; i < hw_threads; ++i) {
     // TODO: this could probably be a concurrent hash map
     auto* futureResult = futures[i].get();
-    threadArr[i].join();
+    threads[i].join();
 
     for (auto& [key, vec] : *futureResult) {
       if (futureResults.find(key) == futureResults.end()) {
@@ -242,7 +253,7 @@ unordered_map<string, vector<double>>* parallel_read_computation(
         res_vec.insert(res_vec.end(), vec.begin(), vec.end());
       }
     }
-    // delete futureResult;
+    delete futureResult;
   }
 
   auto* results = new unordered_map<string, vector<double>>{};
@@ -286,24 +297,15 @@ int main(void) {
 
   unordered_map<string, vector<double>>* results;
 
-/**
- * macro instead of a boolean variable to reduce the computation time.
- * If variable then initialization and control flow check will add to the time
- */
-#ifdef DEBUG
   auto start = std::chrono::high_resolution_clock::now();
   results =
       parallel_read_computation(mapped_file, thread::hardware_concurrency());
-  // results = threaded_computation(mapped_file,
-  // thread::hardware_concurrency()); results =
+  // results = OBRC_concurmap(*mapped_file, thread::hardware_concurrency());
   // sequential_computation(mapped_file->map);
   auto end = chrono::high_resolution_clock::now();
   auto elapsed_time = end - start;
   cout << chrono::duration<double, milli>(elapsed_time).count() << " ms"
        << '\n';
-#else
-  results = sequential_computation(mapped_file);
-#endif
 
   printf("{");
   for (auto& [k, v] : *results) {
@@ -311,8 +313,6 @@ int main(void) {
   }
   printf("%c%c}", char(0x08), char(0x08));
 
-  ofstream res;
-  res.open("res.txt");
   delete results;
 
   return 0;
