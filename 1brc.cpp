@@ -196,12 +196,6 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
           end++;
       }
 
-//    if (i == hw_threads - 1) {
-//      end = mapped_file->fileInfo.st_size - 1;
-//    } else {
-//
-//    }
-
     promise<unordered_map<string, vector<double>>*> prom;
 
     futures.push_back(prom.get_future());
@@ -234,6 +228,7 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
     OBRC_futureworker(mapped_file->map, begin, mapped_file->fileInfo.st_size - 1, std::move(prom));
     auto result = fut.get();
     insertResults(result);
+    delete result;
 
   for (unsigned int i = 0; i < hw_threads; ++i) {
     // TODO: this could probably be a concurrent hash map
@@ -266,8 +261,9 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
 
 int main(void) {
   string filepath =
-      "/home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/"
-      "measurements.txt";
+//      "/home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/"
+//      "measurements.txt";
+  "/home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt";
 
   // if (args > 1) {
   //    filepath = argv[1];
