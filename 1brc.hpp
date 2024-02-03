@@ -21,7 +21,7 @@
 #include <vector>
 
 class OBRC {
-  //  public:
+ public:
   class less {
     bool operator()(const std::pair<std::string, float> &x,
                     const std::pair<std::string, float> &y) const;
@@ -36,7 +36,7 @@ class OBRC {
     float operator()(const std::pair<std::string, float> &x,
                      const std::pair<std::string, float> &y) const;
   };
-};  // namespace OBRC
+};
 
 /**
  * A MappedFile is a structure that holds metadata about an memory mapped
@@ -88,7 +88,7 @@ std::unordered_map<std::string, float[3]> *sequential_computation(char *mem);
  */
 std::unordered_map<std::string, std::vector<double>> *OBRC_futures(
     const std::unique_ptr<MappedFile> &mapped_file,
-    unsigned int hw_threads = std::thread::hardware_concurrency());
+    unsigned int hw_threads = std::thread::hardware_concurrency() - 1);
 
 /**
  * When a future is spawned, this is the function that is being performed

@@ -37,23 +37,8 @@
 
 using namespace std;
 
-using namespace oneapi::tbb::detail::d1;
-using namespace oneapi::tbb::detail::d2;
-
-bool OBRC::less::operator()(const std::pair<std::string, float>& x,
-                            const std::pair<std::string, float>& y) const {
-  return x.second < y.second;
-}
-
-bool OBRC::greater::operator()(const std::pair<string, float>& x,
-                               const std::pair<string, float>& y) const {
-  return x.second > y.second;
-}
-
-float OBRC::accumulate::operator()(const std::pair<string, float>& x,
-                                   const std::pair<string, float>& y) const {
-  return x.second + y.second;
-}
+//using namespace oneapi::tbb::detail::d1;
+//using namespace oneapi::tbb::detail::d2;
 
 MappedFile::~MappedFile() {
   if (munmap(map, fileInfo.st_size) == -1) {
@@ -84,94 +69,87 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
   return mappedFile;
 }
 
-void OBRC_concurworker(
-    char* memmap, long long begin, long long end,
-    std::shared_ptr<concurrent_multimap<std::string, float>> res) {
-  char buffer_arr[100];
-  string buffer_str;
-  long long i = begin;
-  long long j = begin;
-
-  while (j <= end) {
-    if (memmap[j] == '\n') {
-      memset(buffer_arr, 0, 100);
-      std::memcpy(buffer_arr, memmap + i, j - i);
-      buffer_str = buffer_arr;
-
-      string station = buffer_str.substr(0, buffer_str.find(';'));
-      double temp =
-          stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
-      res->insert({station, temp});
-
-      j = i = j + 1;
-    } else {
-      j++;
-    }
-  }
-}
-
-unordered_map<string, vector<double>>* OBRC_concurmap(
-    const struct MappedFile& mapped_file, unsigned int hw_threads) {
-  auto map = make_shared<concurrent_multimap<string, float>>();
-  long long chunk = floor(mapped_file.fileInfo.st_size / hw_threads);
-  vector<thread> threads{};
-
-  long long begin = 0;
-  long long end = chunk;
-
-  for (unsigned int i = 1; i <= hw_threads; ++i) {
-    if (i == hw_threads) {
-      end = mapped_file.fileInfo.st_size - 1;
-    } else {
-      while (end < mapped_file.fileInfo.st_size) {
-        if (mapped_file.map[end] == '\n') {
-          break;
-        }
-        end++;
-      }
-    }
-
-    task_group tasks;
-
-    tasks.run([&]() { OBRC_concurworker(mapped_file.map, begin, end, map); });
-    // threads.push_back(
-    // thread(OBRC_concurworker, ));
-
-    if (mapped_file.map[end + 1] == '\0') {
-      break;  // handles spawning extra threads.
-    }
-    begin = end + 1;  // we know from like 123, that end is '\n'.
-
-    end = ((end + chunk) < mapped_file.fileInfo.st_size)
-              ? end + chunk
-              : mapped_file.fileInfo.st_size - 1;
-
-    tasks.wait();
-
-    // for (auto& t : threads) {
-    //   t.join();
-    // }
-    // auto* res = new unordered_map<string, vector<double>*>{};
-
-    // // OBRC obrc;
-    // for (auto key_it = map->begin(), keyEnd = map->end(); key_it != keyEnd;
-    //      key_it = map->upper_bound(key_it->first)) {
-    //   auto& key = key_it->first;
-    //   auto [value_itr, value_end] = map->equal_range(key);
-    //   auto* stats = new vector<double>{};
-
-    //   auto eeee = min_element(value_itr, value_end);
-    // }
-  }
-  return new unordered_map<string, vector<double>>{};
-}
+//void OBRC_concurworker(
+//    char* memmap, long long begin, long long end,
+//    std::shared_ptr<concurrent_multimap<std::string, float>> res) {
+//  char buffer_arr[100];
+//  string buffer_str;
+//  long long i = begin;
+//  long long j = begin;
+//
+//  while (j <= end) {
+//    if (memmap[j] == '\n') {
+//      memset(buffer_arr, 0, 100);
+//      std::memcpy(buffer_arr, memmap + i, j - i);
+//      buffer_str = buffer_arr;
+//
+//      string station = buffer_str.substr(0, buffer_str.find(';'));
+//      double temp =
+//          stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
+//      res->insert({station, temp});
+//
+//      j = i = j + 1;
+//    } else {
+//      j++;
+//    }
+//  }
+//}
+//
+//unordered_map<string, vector<double>>* OBRC_concurmap(
+//    const struct MappedFile& mapped_file, unsigned int hw_threads) {
+//  auto map = make_shared<concurrent_multimap<string, float>>();
+//  long long chunk = floor(mapped_file.fileInfo.st_size / hw_threads);
+//
+//  long long begin = 0;
+//  long long end = chunk;
+//  task_group tasks;
+//  for (unsigned int i = 1; i <= hw_threads; ++i) {
+//    if (i == hw_threads) {
+//      end = mapped_file.fileInfo.st_size - 1;
+//    } else {
+//      while (end < mapped_file.fileInfo.st_size) {
+//        if (mapped_file.map[end] == '\n') {
+//          break;
+//        }
+//        end++;
+//      }
+//    }
+//
+//    tasks.run([&]() { OBRC_concurworker(mapped_file.map, begin, end, map); });
+//
+//    if (mapped_file.map[end + 1] == '\0') {
+//      break;  // handles spawning extra threads.
+//    }
+//    begin = end + 1;  // we know that end is '\n'.
+//
+//    end = ((end + chunk) < mapped_file.fileInfo.st_size)
+//              ? end + chunk
+//              : mapped_file.fileInfo.st_size - 1;
+//  }
+//  tasks.wait();
+//
+//  // auto* res = new unordered_map<string, vector<double>*>{};
+//
+//  // // OBRC obrc;
+//  // for (auto key_it = map->begin(), keyEnd = map->end(); key_it != keyEnd;
+//  //      key_it = map->upper_bound(key_it->first)) {
+//  //   auto& key = key_it->first;
+//  //   auto [value_itr, value_end] = map->equal_range(key);
+//  //   auto* stats = new vector<double>{};
+//
+//  //   auto eeee = min_element(value_itr, value_end);
+//  // }
+//
+//  return new unordered_map<string, vector<double>>{};
+//}
 
 void OBRC_futureworker(
     char* mem, long long begin, long long end,
     std::promise<std::unordered_map<std::string, std::vector<double>>*> prom) {
   auto* mapped_values = new unordered_map<string, vector<double>>();
 
-  char buffer_arr[100];
+  const size_t BUFFER_SIZE = 100;
+  char buffer_arr[BUFFER_SIZE];
   string buffer_str;
   long long i = begin;
   long long j = begin;
@@ -183,8 +161,7 @@ void OBRC_futureworker(
       buffer_str = buffer_arr;
 
       string station = buffer_str.substr(0, buffer_str.find(';'));
-      double temp =
-          stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
+      double temp = stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
 
       if (mapped_values->find(station) == mapped_values->end()) {
         (*mapped_values)[station].push_back(temp);
@@ -197,13 +174,12 @@ void OBRC_futureworker(
       j++;
     }
   }
-  prom.set_value(mapped_values);
+
+  prom.set_value(mapped_values);;
 }
 
 std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
     const std::unique_ptr<MappedFile>& mapped_file, unsigned int hw_threads) {
-  // TODO: main thread is just waiting around, give that thread a task as
-  // well.
   long long chunk = floor(mapped_file->fileInfo.st_size / hw_threads);
   vector<future<unordered_map<string, vector<double>>*>> futures{};
   vector<thread> threads{};
@@ -213,16 +189,18 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
   long long end = chunk;
 
   for (size_t i = 1; i <= hw_threads; ++i) {
-    if (i == hw_threads) {
-      end = mapped_file->fileInfo.st_size - 1;
-    } else {
       while (end < mapped_file->fileInfo.st_size) {
-        if (mapped_file->map[end] == '\n') {
-          break;
-        }
-        end++;
+          if (mapped_file->map[end] == '\n') {
+              break;
+          }
+          end++;
       }
-    }
+
+//    if (i == hw_threads - 1) {
+//      end = mapped_file->fileInfo.st_size - 1;
+//    } else {
+//
+//    }
 
     promise<unordered_map<string, vector<double>>*> prom;
 
@@ -233,26 +211,35 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
     if (mapped_file->map[end + 1] == '\0') {
       break;  // handles spawning extra threads.
     }
-    begin = end + 1;  // we know from like 123, that end is '\n'.
+    begin = end + 1;  // we know that end is '\n'.
 
     end = ((end + chunk) < mapped_file->fileInfo.st_size)
               ? end + chunk
               : mapped_file->fileInfo.st_size - 1;
   }
 
+    auto insertResults = [&futureResults](unordered_map<string, vector<double>>* futureResult) -> void {
+        for (auto& [key, vec] : *futureResult) {
+            if (futureResults.find(key) == futureResults.end()) {
+                futureResults.insert({key, vec});
+            } else {
+                auto& res_vec = futureResults[key];
+                res_vec.insert(res_vec.end(), vec.begin(), vec.end());
+            }
+        }
+    };
+
+    promise<unordered_map<string, vector<double>>*> prom;
+    auto fut = prom.get_future();
+    OBRC_futureworker(mapped_file->map, begin, mapped_file->fileInfo.st_size - 1, std::move(prom));
+    auto result = fut.get();
+    insertResults(result);
+
   for (unsigned int i = 0; i < hw_threads; ++i) {
     // TODO: this could probably be a concurrent hash map
     auto* futureResult = futures[i].get();
     threads[i].join();
-
-    for (auto& [key, vec] : *futureResult) {
-      if (futureResults.find(key) == futureResults.end()) {
-        futureResults.insert({key, vec});
-      } else {
-        auto& res_vec = futureResults[key];
-        res_vec.insert(res_vec.end(), vec.begin(), vec.end());
-      }
-    }
+    insertResults(futureResult);
     delete futureResult;
   }
 
@@ -265,7 +252,6 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
                        for (int i = r.begin(); i < r.end(); ++i) {
                          running_total += vec[i];
                        }
-
                        return running_total;
                      },
                      std::plus<double>()) /
@@ -280,8 +266,9 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
 
 int main(void) {
   string filepath =
-      "/home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/"
+      "/home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/"
       "measurements.txt";
+
   // if (args > 1) {
   //    filepath = argv[1];
   // } else {
@@ -297,14 +284,9 @@ int main(void) {
 
   unordered_map<string, vector<double>>* results;
 
-  auto start = std::chrono::high_resolution_clock::now();
   results = OBRC_futures(mapped_file, thread::hardware_concurrency());
   // results = OBRC_concurmap(*mapped_file, thread::hardware_concurrency());
   // sequential_computation(mapped_file->map);
-  auto end = chrono::high_resolution_clock::now();
-  auto elapsed_time = end - start;
-  cout << chrono::duration<double, milli>(elapsed_time).count() << " ms"
-       << '\n';
 
   printf("{");
   for (auto& [k, v] : *results) {
