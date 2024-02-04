@@ -35,6 +35,7 @@
 #include <iostream>
 #include <numeric>
 #include <thread>
+#include <regex>
 
 using namespace std;
 
@@ -70,30 +71,84 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
   return mappedFile;
 }
 
+
+unordered_map<string, vector<double>>* OBRC_worker(
+        char* mem, long long begin, long long end) {
+    auto* mapped_values = new unordered_map<string, vector<double>>();
+
+//    const size_t BUFFER_SIZE = 100;
+//    char buffer_arr[BUFFER_SIZE];
+//    string buffer_str;
+//    long long i = begin;
+//    long long j = begin;
+
+    string s (mem + begin, mem + end);
+    smatch m;
+    regex e ("(.*);(.*)\\n");
+    while (regex_search(s, m, e)) {
+        string station = m[1];
+        double temp = stof(m[2]);
+
+        if (mapped_values->find(station) == mapped_values->end()) {
+            (*mapped_values)[station].push_back(temp);
+        } else {
+            vector<double> vec {temp};
+            vec.reserve(10'000);
+            (*mapped_values)[station] = vec;
+        }
+    }
+
+//    while (j <= end) {
+//        if (mem[j] == '\n') {
+//            memset(buffer_arr, 0, 100);
+//            std::memcpy(buffer_arr, mem + i, j - i);
+//            buffer_str = buffer_arr;
+//
+//            string station = buffer_str.substr(0, buffer_str.find(';'));
+//            double temp = stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
+//
+//            if (mapped_values->find(station) == mapped_values->end()) {
+//                (*mapped_values)[station].push_back(temp);
+//            } else {
+//                vector<double> vec {temp};
+//                vec.reserve(10'000);
+//                (*mapped_values)[station] = vec;
+//            }
+//            j = i = j + 1;
+//        } else {
+//            j++;
+//        }
+//    }
+
+    return mapped_values;
+}
+
+
 void OBRC_futureworker(
     char* mem, long long begin, long long end,
-    std::promise<std::unordered_map<std::string, std::vector<double>>*> prom) {
-  auto* mapped_values = new unordered_map<string, vector<double>>();
+    std::promise<std::unordered_map<std::string, std::vector<int>>*> prom) {
+  auto* mapped_values = new unordered_map<string, vector<int>>();
 
-  const size_t BUFFER_SIZE = 100;
-  char buffer_arr[BUFFER_SIZE];
-  string buffer_str;
   long long i = begin;
   long long j = begin;
 
+
   while (j <= end) {
     if (mem[j] == '\n') {
-      memset(buffer_arr, 0, 100);
-      std::memcpy(buffer_arr, mem + i, j - i);
-      buffer_str = buffer_arr;
+        string buffer_str(mem + i, mem + j);
 
-      string station = buffer_str.substr(0, buffer_str.find(';'));
-      double temp = stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
+      unsigned long delimiter = buffer_str.find(';');
+      string station = buffer_str.substr(0, delimiter);
+      string temp_str = buffer_str.substr(delimiter + 1);
+
+      temp_str.erase(remove(temp_str.begin(), temp_str.end(), '.'), temp_str.end());
+      int temp = stoi(temp_str);
+
 
       if (mapped_values->find(station) == mapped_values->end()) {
         (*mapped_values)[station].push_back(temp);
       } else {
-          vector<double> vec {temp};
+          vector<int> vec {temp};
           vec.reserve(10'000);
         (*mapped_values)[station] = vec;
       }
@@ -103,32 +158,55 @@ void OBRC_futureworker(
     }
   }
 
-  prom.set_value(mapped_values);;
+  prom.set_value(mapped_values);
 }
 
-std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
+std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
     const std::unique_ptr<MappedFile>& mapped_file, unsigned int hw_threads) {
   long long chunk = floor(mapped_file->fileInfo.st_size / hw_threads);
-  vector<future<unordered_map<string, vector<double>>*>> futures{};
+  vector<future<unordered_map<string, vector<int>>*>> futures{};
   vector<thread> threads{};
-  auto futureResults = unordered_map<string, vector<double>>{};
+  auto futureResults = unordered_map<string, vector<int>>{};
 
   long long begin = 0;
   long long end = chunk;
 
+    // taking too long?? causing the program to run in O(n)
+    // what if we were to parallel this?
+    auto insertResults = [&futureResults](unordered_map<string, vector<int>>* futureResult) -> void {
+        for (auto& [key, vec] : *futureResult) {
+            if (futureResults.find(key) == futureResults.end()) {
+                futureResults.insert({key, vec});
+            } else {
+                auto& res_vec = futureResults[key];
+                res_vec.insert(res_vec.end(), vec.begin(), vec.end());
+            }
+        }
+    };
+
   for (size_t i = 1; i <= hw_threads; ++i) {
-      while (end < mapped_file->fileInfo.st_size) {
-          if (mapped_file->map[end] == '\n') {
+      if (i == hw_threads + 1) {
+          end = mapped_file->fileInfo.st_size - 1;
+      } else {
+          while (end < mapped_file->fileInfo.st_size) {
+              if (mapped_file->map[end] == '\n') {
+                  break;
+              }
+              end++;
+          }
+          if (end == mapped_file->fileInfo.st_size - 1) {
               break;
           }
-          end++;
       }
 
-      promise<unordered_map<string, vector<double>> *> prom;
-
+      promise<unordered_map<string, vector<int>> *> prom;
       futures.push_back(prom.get_future());
       threads.push_back(thread(OBRC_futureworker, mapped_file->map, begin, end,
                                std::move(prom)));
+
+//      auto result = OBRC_worker(mapped_file->map, begin, end);
+//      insertResults(result);
+//      delete result;
 
       if (mapped_file->map[end + 1] == '\0') {
           break;  // handles spawning extra threads.
@@ -140,39 +218,24 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
             : mapped_file->fileInfo.st_size - 1;
   }
 
-    // taking too long?? causing the program to run in O(n)
-    // what if we were to parallel this?
-    auto insertResults = [&futureResults](unordered_map<string, vector<double>>* futureResult) -> void {
-        for (auto& [key, vec] : *futureResult) {
-            if (futureResults.find(key) == futureResults.end()) {
-                futureResults.insert({key, vec});
-            } else {
-                auto& res_vec = futureResults[key];
-                res_vec.insert(res_vec.end(), vec.begin(), vec.end());
-            }
-        }
-    };
-
-
-    promise<unordered_map<string, vector<double>>*> prom;
-    auto fut = prom.get_future();
-    OBRC_futureworker(mapped_file->map, begin, mapped_file->fileInfo.st_size - 1, std::move(prom));
-    auto result = fut.get();
+    auto result = OBRC_worker(mapped_file->map, begin, mapped_file->fileInfo.st_size - 1);
     insertResults(result);
     delete result;
 
-  for (unsigned int i = 0; i < hw_threads; ++i) {
-    // TODO: this could probably be a concurrent hash map
-    auto* futureResult = futures[i].get();
-    threads[i].join();
-    insertResults(futureResult);
-    delete futureResult;
-  }
+    int i = 0;
+    for (auto& t : threads) {
+        t.join();
+        auto* futureResult = futures[i].get();
+        insertResults(futureResult);
+        delete futureResult;
+        i++;
+    }
 
-  auto* results = new unordered_map<string, vector<double>>{};
+
+  auto* results = new unordered_map<string, vector<float>>{};
   for (auto& [key, vec] : futureResults) {
-    double min = (double)*min_element(vec.begin(), vec.end());
-    double avg = (double)tbb::detail::d1::parallel_reduce(
+    float min = *min_element(vec.begin(), vec.end()) / 10.0f;
+    float avg = (tbb::detail::d1::parallel_reduce(
                      tbb::blocked_range<double>(0, vec.size()), 0.0,
                      [&](tbb::blocked_range<double> r, double running_total) {
                        for (int i = r.begin(); i < r.end(); ++i) {
@@ -180,10 +243,10 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
                        }
                        return running_total;
                      },
-                     std::plus<double>()) /
+                     std::plus<double>()) / 10.0f ) /
                  (double)vec.size();
-    double max = (double)*max_element(vec.begin(), vec.end());
-    vector<double> stats{min, avg, max};
+    float max = *max_element(vec.begin(), vec.end()) / 10.0f;
+    vector<float> stats{min, avg, max};
     results->insert({key, stats});
   };
 
@@ -192,9 +255,8 @@ std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
 
 int main(void) {
   string filepath =
-      "/home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/"
-      "measurements.txt";
-//  "/home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt";
+//      "/home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt";
+  "/home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt";
 
   // if (args > 1) {
   //    filepath = argv[1];
@@ -209,15 +271,13 @@ int main(void) {
     exit(1);
   }
 
-  unordered_map<string, vector<double>>* results;
+  unordered_map<string, vector<float>>* results;
 
-  results = OBRC_futures(mapped_file, thread::hardware_concurrency());
-//   results = OBRC_concurmap(*mapped_file, thread::hardware_concurrency());
-//   sequential_computation(mapped_file->map);
+  results = OBRC_futures(mapped_file);
 
   printf("{");
   for (auto& [k, v] : *results) {
-    printf("%s=%.2f/%.2f/%.2f, ", k.c_str(), v[0], v[1], v[2]);
+    printf("%s=%.1f/%.1f/%.1f, ", k.c_str(), v[0], v[1], v[2]);
   }
   printf("%c%c}", char(0x08), char(0x08));
 
