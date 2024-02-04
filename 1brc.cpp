@@ -70,84 +70,6 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
   return mappedFile;
 }
 
-void OBRC_concurworker(
-    char* memmap, long long begin, long long end,
-    std::shared_ptr<concurrent_multimap<std::string, float>> res) {
-  char buffer_arr[100];
-  string buffer_str;
-  long long i = begin;
-  long long j = begin;
-
-  while (j <= end) {
-    if (memmap[j] == '\n') {
-      memset(buffer_arr, 0, 100);
-      std::memcpy(buffer_arr, memmap + i, j - i);
-      buffer_str = buffer_arr;
-
-      string station = buffer_str.substr(0, buffer_str.find(';'));
-      double temp =
-          stof(buffer_str.substr(buffer_str.find(';') + 1, buffer_str.size()));
-      res->insert({station, temp});
-
-      j = i = j + 1;
-    } else {
-      j++;
-    }
-  }
-}
-
-unordered_map<string, vector<double>>* OBRC_concurmap(
-    const struct MappedFile& mapped_file, unsigned int hw_threads) {
-  auto map = make_shared<concurrent_multimap<string, float>>();
-  long long chunk = floor(mapped_file.fileInfo.st_size / hw_threads);
-  vector<thread> threads {};
-
-  long long begin = 0;
-  long long end = chunk;
-  for (unsigned int i = 1; i <= hw_threads - 1; ++i) {
-      while (end < mapped_file.fileInfo.st_size) {
-          if (mapped_file.map[end] == '\n') {
-              break;
-          }
-          end++;
-      }
-
-//    tasks.run([&]() { OBRC_concurworker(mapped_file.map, begin, end, map); });
-      threads.push_back(thread(OBRC_concurworker, mapped_file.map, begin, end, map));
-
-    if (mapped_file.map[end + 1] == '\0') {
-      break;  // handles spawning extra threads.
-    }
-    begin = end + 1;  // we know that end is '\n'.
-
-    end = ((end + chunk) < mapped_file.fileInfo.st_size)
-              ? end + chunk
-              : mapped_file.fileInfo.st_size - 1;
-  }
-
-    end = mapped_file.fileInfo.st_size - 1;
-
-    OBRC_concurworker(mapped_file.map, begin, end, map);
-
-    for (auto& t : threads) {
-        t.join();
-    }
-
-  // auto* res = new unordered_map<string, vector<double>*>{};
-
-  // // OBRC obrc;
-  // for (auto key_it = map->begin(), keyEnd = map->end(); key_it != keyEnd;
-  //      key_it = map->upper_bound(key_it->first)) {
-  //   auto& key = key_it->first;
-  //   auto [value_itr, value_end] = map->equal_range(key);
-  //   auto* stats = new vector<double>{};
-
-  //   auto eeee = min_element(value_itr, value_end);
-  // }
-
-  return new unordered_map<string, vector<double>>{};
-}
-
 void OBRC_futureworker(
     char* mem, long long begin, long long end,
     std::promise<std::unordered_map<std::string, std::vector<double>>*> prom) {
@@ -175,7 +97,6 @@ void OBRC_futureworker(
           vec.reserve(10'000);
         (*mapped_values)[station] = vec;
       }
-
       j = i = j + 1;
     } else {
       j++;
@@ -185,7 +106,7 @@ void OBRC_futureworker(
   prom.set_value(mapped_values);;
 }
 
-std::unordered_map<std::string, std::vector<double>>*  OBRC_futures(
+std::unordered_map<std::string, std::vector<double>>* OBRC_futures(
     const std::unique_ptr<MappedFile>& mapped_file, unsigned int hw_threads) {
   long long chunk = floor(mapped_file->fileInfo.st_size / hw_threads);
   vector<future<unordered_map<string, vector<double>>*>> futures{};
@@ -203,20 +124,20 @@ std::unordered_map<std::string, std::vector<double>>*  OBRC_futures(
           end++;
       }
 
-    promise<unordered_map<string, vector<double>>*> prom;
+      promise<unordered_map<string, vector<double>> *> prom;
 
-    futures.push_back(prom.get_future());
-    threads.push_back(thread(OBRC_futureworker, mapped_file->map, begin, end,
-                             std::move(prom)));
+      futures.push_back(prom.get_future());
+      threads.push_back(thread(OBRC_futureworker, mapped_file->map, begin, end,
+                               std::move(prom)));
 
-    if (mapped_file->map[end + 1] == '\0') {
-      break;  // handles spawning extra threads.
-    }
-    begin = end + 1;  // we know that end is '\n'.
+      if (mapped_file->map[end + 1] == '\0') {
+          break;  // handles spawning extra threads.
+      }
+      begin = end + 1;  // we know that end is '\n'.
 
-    end = ((end + chunk) < mapped_file->fileInfo.st_size)
-              ? end + chunk
-              : mapped_file->fileInfo.st_size - 1;
+      end = ((end + chunk) < mapped_file->fileInfo.st_size)
+            ? end + chunk
+            : mapped_file->fileInfo.st_size - 1;
   }
 
     // taking too long?? causing the program to run in O(n)
