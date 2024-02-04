@@ -20,24 +20,6 @@
 #include <utility>
 #include <vector>
 
-class OBRC {
- public:
-  class less {
-    bool operator()(const std::pair<std::string, float> &x,
-                    const std::pair<std::string, float> &y) const;
-  };
-
-  class greater {
-    bool operator()(const std::pair<std::string, float> &x,
-                    const std::pair<std::string, float> &y) const;
-  };
-
-  class accumulate {
-    float operator()(const std::pair<std::string, float> &x,
-                     const std::pair<std::string, float> &y) const;
-  };
-};
-
 /**
  * A MappedFile is a structure that holds metadata about an memory mapped
  * file. The true purpose of containerizing these values was to take
@@ -70,7 +52,7 @@ std::unique_ptr<MappedFile> map_file2mem(const char *path);
  * paralellized implemation due to the overhead of spinning up hardware
  * threads.
  */
-std::unordered_map<std::string, float[3]> *sequential_computation(char *mem);
+//std::unordered_map<std::string, float[3]> *sequential_computation(char *mem);
 
 /**
  * Parallelized Read, Sequential Computation (Second Attempt):
@@ -86,7 +68,7 @@ std::unordered_map<std::string, float[3]> *sequential_computation(char *mem);
  * would be most ideal.
  *
  */
-std::unordered_map<std::string, std::vector<double>> *OBRC_futures(
+std::unordered_map<std::string, std::vector<float>> *OBRC_futures(
     const std::unique_ptr<MappedFile> &mapped_file,
     unsigned int hw_threads = std::thread::hardware_concurrency() - 1);
 
@@ -106,7 +88,7 @@ std::unordered_map<std::string, std::vector<double>> *OBRC_futures(
  */
 void OBRC_futureworker(
     char *mem, long long begin, long long end,
-    std::promise<std::unordered_map<std::string, std::vector<double>> *> prom);
+    std::promise<std::unordered_map<std::string, std::vector<int>> *> prom);
 
 // void OBRC_concurworker(
 //     char *memmap, long long begin, long long end,
