@@ -9,7 +9,7 @@
 # Sciences, Binghamton University.
 
 CC     = g++
-CFLAGS = -std=c++17 -Wall -Wextra -pedantic -g -O
+CFLAGS = -std=c++17 -Wall -Wextra -pedantic -g -O3
 TARGET = 1brc
 
 .pre:
@@ -20,7 +20,7 @@ all: $(TARGET)
 	$(RM) *.o
 
 $(TARGET): $(TARGET).o
-	$(CC) $(CFLAGS) -o build/$(TARGET) $(TARGET).cpp -pthread -lstdc++ -ltbb
+	$(CC) $(CFLAGS) -o build/$(TARGET) $(TARGET).cpp -pthread -lstdc++
 
 $(TARGET).o: .pre $(TARGET).cpp $(TARGET).hpp
 	$(CC) $(CFLAGS) -c $(TARGET).cpp -pthread -lstdc++ -ltbb
