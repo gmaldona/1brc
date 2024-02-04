@@ -101,3 +101,5 @@ void OBRC_futureworker(
 // &memmap,
 //                unsigned int hw_threads =
 //                std::thread::hardware_concurrency());
+
+inline int AtoI(const char *p);

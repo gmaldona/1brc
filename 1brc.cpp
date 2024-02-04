@@ -40,6 +40,16 @@ MappedFile::~MappedFile() {
   }
 }
 
+inline int AtoI(const char *p) {
+    int x = 0; int isNeg = 0;
+    if (*p == '-') { isNeg = 1; ++p; }
+    while (*p >= '0' && *p <= '9') {
+        x = (x*10) + (*p - '0');
+        ++p;
+    }
+    return (isNeg) ? -x : x;
+}
+
 /*
  * Map a file to memory to faster reads.
  *
@@ -77,7 +87,7 @@ unordered_map<string, vector<int>>* OBRC_worker(
             string temp_str = buffer_str.substr(delimiter + 1);
 
             temp_str.erase(remove(temp_str.begin(), temp_str.end(), '.'), temp_str.end());
-            int temp = 2;   // = stoi(temp_str); // Reduces by 25% without stoi
+            int temp = AtoI(temp_str.c_str()); // Reduces by 25% without stoi
 
             if (mapped_values->find(station) != mapped_values->end()) {
                 vector<int> vec {temp};
