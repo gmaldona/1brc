@@ -78,6 +78,7 @@ unordered_map<string, vector<int>>* OBRC_worker(
     auto* mapped_values = new unordered_map<string, vector<int>>();
     long long i = begin;
     long long j = begin;
+
     while (j <= end) {
         if (mem[j] == '\n') {
             string buffer_str(mem + i, mem + j);
@@ -85,18 +86,25 @@ unordered_map<string, vector<int>>* OBRC_worker(
             unsigned long delimiter = buffer_str.find(';');
             string station = buffer_str.substr(0, delimiter);
             string temp_str = buffer_str.substr(delimiter + 1);
+            unsigned long decimal = temp_str.find('.');
+
+            if (decimal + 2 < temp_str.size()) {
+                temp_str = temp_str.substr(0, decimal + 2);
+            }
 
             temp_str.erase(remove(temp_str.begin(), temp_str.end(), '.'), temp_str.end());
             int temp = AtoI(temp_str.c_str()); // Reduces by 25% without stoi
 
             if (mapped_values->find(station) != mapped_values->end()) {
-                vector<int> vec {temp};
-                vec.reserve(10'000);
-                (*mapped_values)[station] = vec;
+                auto& t = (*mapped_values)[station];
+                if (temp < t[0]) { t[0] = temp; }
+                t[1] = t[1] + temp;
+                if (temp > t[2]) { t[2] = temp; }
+                t[4]++;
             }
             else {
-                (*mapped_values)[station].push_back(temp);
-            }
+                (*mapped_values).insert({station, {temp, temp, temp, 1}}); // ----vvvvvvvvvvvvv
+            }                   // extremely hacky: [0] - min, [1] - running total, [2] - max, [3] - temperatures found.
             j = i = j + 1;
         } else {
             j++;
@@ -129,7 +137,10 @@ std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
                 futureResults.insert({key, vec});
             } else {
                 auto& res_vec = futureResults[key];
-                res_vec.insert(res_vec.end(), vec.begin(), vec.end());
+                if (vec[0] < res_vec[0]) { res_vec[0] = vec[0]; }
+                if (vec[2] > res_vec[2]) {res_vec[2] = vec[2]; }
+                res_vec[1] = res_vec[1] + vec[1];
+
             }
         }
     };
@@ -168,7 +179,7 @@ std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
             ? end + chunk
             : mapped_file->fileInfo.st_size - 1;
   }
-
+  
     auto result = OBRC_worker(mapped_file->map, begin, mapped_file->fileInfo.st_size - 1);
     insertResults(result);
     delete result;
@@ -184,9 +195,9 @@ std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
 
   auto* results = new unordered_map<string, vector<float>>{};
   for (auto& [key, vec] : futureResults) {
-    float min = *min_element(vec.begin(), vec.end()) / 10.0f;
-    float avg = (accumulate(vec.begin(), vec.end(), 0.0)  / 10.0f ) / (double)vec.size();
-    float max = *max_element(vec.begin(), vec.end()) / 10.0f;
+    float min = vec[0] / 10.0f;
+    float avg = ((vec[1] ) / 10.0f) / (float)vec[3];
+    float max = vec[2] / 10.0f;
     vector<float> stats{min, avg, max};
     results->insert({key, stats});
   };
@@ -196,8 +207,9 @@ std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
 
 int main(int args, char** argv) {
   string filepath;
-   // "/home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt";
-   // "/home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt";
+   // /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
+   // /home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
+   // /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/src/test/resources/samples/measurements-10.txt
 
    if (args > 1) {
       filepath = argv[1];
