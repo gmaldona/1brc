@@ -72,8 +72,8 @@ MappedFile* map_file2mem(const char* path) {
 
 
 //unordered_map<string, vector<int>>*
-void OBRC_worker(
-        char* mem, long long begin, long long end, std::unordered_map<std::string, std::vector<int>*>* mapped_values) {
+void OBRC_worker(char* mem, long long begin, long long end,
+                 std::unordered_map<std::string, std::vector<int>*>* mapped_values) {
 //    auto* mapped_values = new unordered_map<string, vector<int>>();
     long long i = begin;
     long long j = begin;
@@ -91,7 +91,9 @@ void OBRC_worker(
                 temp_str = temp_str.substr(0, decimal + 1);
             }
 
-            temp_str.erase(remove(temp_str.begin(), temp_str.end(), '.'), temp_str.end());
+            temp_str.erase(
+                    remove(temp_str.begin(), temp_str.end(), '.'), temp_str.end()
+                    );
             int temp = StoI(temp_str.c_str()); // Reduces by 25% without stoi
 
             if (mapped_values->find(station) != mapped_values->end()) {
@@ -102,8 +104,10 @@ void OBRC_worker(
                 (*t)[3] = (*t)[3] + 1;
             }
             else {
-                (*mapped_values).insert({station, new vector<int>{temp, temp, temp, 1}}); // ----vvvvvvvvvvvvv
-            }                   // extremely hacky: [0] - min, [1] - running total, [2] - max, [3] - temperatures found.
+                (*mapped_values).insert(
+                        {station, new vector<int>{temp, temp, temp, 1}
+                        }); // ----vvvvvvvvvvvvv
+            } // extremely hacky: [0] - min, [1] - running total, [2] - max, [3] - size.
             j = i = j + 1;
         } else {
             j++;
@@ -122,7 +126,8 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
   long long begin = 0;
   long long end = chunk;
 
-    auto insertResults = [&futureResults](unordered_map<string, vector<int>*>* futureResult) -> void {
+    auto insertResults = [&futureResults]
+            (unordered_map<string, vector<int>*>* futureResult) -> void {
         for (auto& [key, vec] : *futureResult) {
             if (futureResults.find(key) == futureResults.end()) {
                 futureResults.insert({key, *vec});
@@ -152,17 +157,10 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
           }
       }
 
-//      promise<unordered_map<string, vector<int>> *> prom;
-//      futures.push_back(prom.get_future());
         auto* thread_map = new unordered_map<string, vector<int>*> {};
         futures.push_back(thread_map);
         threads.emplace_back(OBRC_worker, mapped_file->map, begin, end,
                                thread_map);
-
-      // sequential
-//      auto result = OBRC_worker(mapped_file->map, begin, end);
-//      insertResults(result);
-//      delete result;
 
       if (mapped_file->map[end + 1] == '\0') {
           break;  // handles spawning extra threads.
@@ -175,7 +173,8 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
   }
 
     auto* result = new unordered_map<string, vector<int>*> {};
-    OBRC_worker(mapped_file->map, begin, mapped_file->fileInfo.st_size - 1, result);
+    OBRC_worker(mapped_file->map, begin,
+                 mapped_file->fileInfo.st_size - 1, result);
     insertResults(result);
     delete result;
 
@@ -198,12 +197,15 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
 
   return results;
 }
+/*
+* /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
+* /home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
+* /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/src/test/resources/samples/measurements-10.txt
+*/
 
 int main(int args, char** argv) {
   string filepath;
-   // /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
-   // /home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
-   // /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/src/test/resources/samples/measurements-10.txt
+
 
    if (args > 1) {
       filepath = argv[1];

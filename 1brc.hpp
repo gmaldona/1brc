@@ -106,4 +106,4 @@ void OBRC_worker(char* mem, long long begin, long long end,
 //                unsigned int hw_threads =
 //                std::thread::hardware_concurrency());
 
-inline int AtoI(const char *p);
+inline int StoI(const char *p);
