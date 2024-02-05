@@ -38,7 +38,7 @@ MappedFile::~MappedFile() {
   }
 }
 
-inline int AtoI(const char *p) {
+inline int StoI(const char *p) {
     int x = 0; int isNeg = 0;
     if (*p == '-') { isNeg = 1; ++p; }
     while (*p >= '0' && *p <= '9') {
@@ -92,7 +92,7 @@ void OBRC_worker(
             }
 
             temp_str.erase(remove(temp_str.begin(), temp_str.end(), '.'), temp_str.end());
-            int temp = AtoI(temp_str.c_str()); // Reduces by 25% without stoi
+            int temp = StoI(temp_str.c_str()); // Reduces by 25% without stoi
 
             if (mapped_values->find(station) != mapped_values->end()) {
                 auto& t = (*mapped_values)[station];
