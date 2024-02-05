@@ -137,6 +137,14 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
   long long begin = 0;
   long long end = chunk;
 
+    /*
+     * Inserting a threaded result into the MEGA map.
+     * This does NOT keep all the values. It does a loop through
+     * and determines min, max, size, and running total on the
+     * fly.
+     * This was noted to be fast than doing a push_back()
+     * on each value.
+     */
     auto insertResults = [&futureResults]
             (unordered_map<string, vector<int>*>* futureResult) -> void {
         for (auto& [key, vec] : *futureResult) {
@@ -153,44 +161,58 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
         }
     };
 
-  for (size_t i = 1; i <= hw_threads; ++i) {
-      if (i == hw_threads + 1) {
-          end = mapped_file->fileInfo.st_size - 1;
-      } else {
-          while (end < mapped_file->fileInfo.st_size) {
-              if (mapped_file->map[end] == '\n') {
-                  break;
-              }
-              end++;
+
+    /**
+     * The chunk algo.
+     * Tries to divide each chunk evenly but if the chunk ends NOT on a '\n'
+     * then it must find the closest one and use that. The next chunk will
+     * start where the '\n'was found + 1.
+     */
+    for (size_t i = 1; i <= hw_threads; ++i) {
+        // this will not run. I want to remove it but I won't.
+        if (i == hw_threads + 1) {
+            end = mapped_file->fileInfo.st_size - 1;
+        } else {
+            while (end < mapped_file->fileInfo.st_size) {
+                if (mapped_file->map[end] == '\n') { break; }
+                end++;
+            }
+            if (end == mapped_file->fileInfo.st_size - 1) {
+                break;
           }
-          if (end == mapped_file->fileInfo.st_size - 1) {
-              break;
-          }
-      }
+        }
 
 //==================================================================== 80 =====
 
-        auto* thread_map = new unordered_map<string, vector<int>*> {};
-        futures.push_back(thread_map);
-        threads.emplace_back(OBRC_worker, mapped_file->map, begin, end,
+
+    // spawn the thread.
+    auto* thread_map = new unordered_map<string, vector<int>*> {};
+    futures.push_back(thread_map);
+    threads.emplace_back(OBRC_worker, mapped_file->map, begin, end,
                                thread_map);
 
-      if (mapped_file->map[end + 1] == '\0') {
-          break;  // handles spawning extra threads.
-      }
-      begin = end + 1;  // we know that end is '\n'.
+    if (mapped_file->map[end + 1] == '\0') {
+        break;  // handles spawning extra threads.
+    }
+    begin = end + 1;  // we know that end is '\n'.
 
-      end = ((end + chunk) < mapped_file->fileInfo.st_size)
+    end = ((end + chunk) < mapped_file->fileInfo.st_size)
             ? end + chunk
             : mapped_file->fileInfo.st_size - 1;
-  }
+    }
 
+    /* reserve the last hw_thread as the main thread and instead of
+     * wasting cycles waiting, use the computation to calculate its
+     * own chunk.
+     */
     auto* result = new unordered_map<string, vector<int>*> {};
     OBRC_worker(mapped_file->map, begin,
-                 mapped_file->fileInfo.st_size - 1, result);
+                 mapped_file->fileInfo.st_size - 1,
+                 result);
     insertResults(result);
     delete result;
 
+    // join each thread and join into to MEGA results.
     int i = 0;
     for (auto& t : threads) {
         t.join();
@@ -200,15 +222,15 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
         i++;
     }
 
-  auto* results = new unordered_map<string, vector<float>*>{};
-  for (auto& [key, vec] : futureResults) {
-    float min = vec[0] / 10.0f;
-    float avg = (((float)vec[1] ) / 10.0f) / (float)vec[3];
-    float max = vec[2] / 10.0f;
-    results->insert({key, new vector<float>{min, avg, max}});
-  };
-
-  return results;
+    // final computation on all the results.
+    auto* results = new unordered_map<string, vector<float>*>{};
+    for (auto& [key, vec] : futureResults) {
+        float min = vec[0] / 10.0f;
+        float avg = (((float)vec[1] ) / 10.0f) / (float)vec[3];
+        float max = vec[2] / 10.0f;
+        results->insert({key, new vector<float>{min, avg, max}});
+    };
+    return results;
 }
 
 //==================================================================== 80 =====
@@ -216,18 +238,17 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
 int main(int args, char** argv) {
   string filepath;
 
-
-   if (args > 1) {
+  if (args > 1) {
       filepath = argv[1];
-   } else {
+  } else {
       perror("No file to load.\n");
       exit(0);
-   }
+  }
 
   auto* mapped_file = map_file2mem(filepath.c_str());
   if (mapped_file == nullptr) {
-    perror("File mapping to memory failed.");
-    exit(1);
+      perror("File mapping to memory failed.");
+      exit(1);
   }
 
   unordered_map<string, vector<float>*>* results;
@@ -235,14 +256,14 @@ int main(int args, char** argv) {
 
   printf("{");
   for (auto& [k, v] : *results) {
-    printf("%s=%.1f/%.1f/%.1f, ", k.c_str(), (*v)[0], (*v)[1], (*v)[2]);
-    delete v;
+      printf("%s=%.1f/%.1f/%.1f, ", k.c_str(), (*v)[0], (*v)[1], (*v)[2]);
+      delete v;
   }
   printf("%c%c}", char(0x08), char(0x08));
 
   delete results;
-
   delete mapped_file;
 
   return 0;
 }
+//==================================================================== 80 =====
