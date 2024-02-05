@@ -32,6 +32,8 @@ struct MappedFile {
   ~MappedFile();
 };
 
+//==================================================================== 80 =====
+
 /**
  * Uses mmap to map a file to memory. This is the best way to do parallel
  * computation on a buffer due to the fact of divide and conquer on the
@@ -52,48 +54,68 @@ MappedFile* map_file2mem(const char *path);
  * paralellized implemation due to the overhead of spinning up hardware
  * threads.
  */
-//std::unordered_map<std::string, float[3]> *sequential_computation(char *mem);
+// std::unordered_map<std::string, float[3]>
+// *sequential_computation(char *mem);
 
 /**
- * Parallelized Read, Sequential Computation (Second Attempt):
+ * Threads (Second Attempt):
  *
- * This was a quick attempt at parallelizing the operations needed to read
- * the file. Using mmap, the memory is able to be divided amongst all of the
- * threads on the machine and reading and parsing the given block of memory.
- * A future holds the promised data and the main thread waits till the
- * future is finished on the parsing. The computation of finding the min,
- * med, and max is still sequential because it requires all the futures to
- * return their data and then can sum all of the values together. This is
- * still not as good as it __could__ be... Parallelizing the computation
- * would be most ideal.
+ * This implementation calculates "chunks" (an range within the memmap that
+ * will pass down to the thread to operate on) and spawn a thread to perform
+ * the read. The amount of threads spawned is
+ *      0 < x < std::thread::hardware_concurrency() - 1
+ * The main thread will join() each thread and then combine all results into
+ * a single unordered map to be do the final computations.
+ * Note: pointers were used a bunch in this implementation. After MANY
+ * iterations, it was noted that the speed increased dramatically after
+ * using pointers. This is probably due to the fact, in previous
+ * implementations, it was doing copies all over the place, where as pointers
+ * do not need to do the copy.
  *
  */
 std::unordered_map<std::string, std::vector<float>*> *OBRC_futures(
     MappedFile* mapped_file,
     unsigned int hw_threads = std::thread::hardware_concurrency() - 1);
 
+//==================================================================== 80 =====
+
+/**
+ * This implementation is DEPRECATED.
+ * This implementation was an attempt to use futures and then wait for
+ * the future to return its value. The superseding implementation is
+ * # OBRC_worker(char* mem, long long begin, long long end,
+    std::unordered_map<std::string, std::vector<int>*>* mapped_values);
+ * in which a pointer to a map is given as a parameter and the thread
+ * operates on the parameter. This is almost like the implementation
+ * with futures by passing in a promise but the overhead for the promise
+ * was too costly so DEPRECATED :).
+ */
+void OBRC_futureworker(
+    char *mem, long long begin, long long end,
+    std::unordered_map<std::string, std::vector<int>*> * mapped_values);
+
 /**
  * When a future is spawned, this is the function that is being performed
  * within the future.
+ * The parsing is done using fixed point numbers and regexs. When the thread
+ * is spawned, it is GUARENTEED that the chunk passed down will start at a
+ * station name and end with a \n. This is to ensure splitting is done
+ * evenly and correctly.
  *
  * @param mem pointer to the mapped memory.
  * @param begin index to the starting position of the assigned chunk.
  * @param end index to the ending position of the assigned chunk.
- * @return pointer to the map of results of the assigned chunk.
+ * @param mapped_values the resulting computation of the worker.
  *
  * NOTE: Using a pointer because when returning, it returns a copy of the
  * values within the map. If a pointer is used, then no copy is needed and
  * significantly speeds up the performance. One dry run: ~ 3.0e6 ns down to
  * ~ 1.5e6 ns
  */
-void OBRC_futureworker(
-    char *mem, long long begin, long long end,
-    std::unordered_map<std::string, std::vector<int>*> * mapped_values);
-
-//unordered_map<string, vector<int>>*
 void OBRC_worker(char* mem, long long begin, long long end,
     std::unordered_map<std::string, std::vector<int>*>* mapped_values);
 
+// ================================================ RIP TBB Implementaion =====
 // void OBRC_concurworker(
 //     char *memmap, long long begin, long long end,
 //     std::shared_ptr<concurrent_hash_map<std::string,
@@ -107,3 +129,5 @@ void OBRC_worker(char* mem, long long begin, long long end,
 //                std::thread::hardware_concurrency());
 
 inline int StoI(const char *p);
+
+//==================================================================== 80 =====

@@ -18,3 +18,9 @@ To benchmark:
 ```bash
 make && time ./build/1brc <path_to_file>
 ```
+
+## My testing files
+
+* /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
+* /home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
+* /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/src/test/resources/samples/measurements-10.txt

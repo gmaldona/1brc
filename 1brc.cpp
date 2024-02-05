@@ -29,6 +29,9 @@
 #include <iostream>
 #include <thread>
 
+
+//==================================================================== 80 =====
+
 using namespace std;
 
 MappedFile::~MappedFile() {
@@ -70,11 +73,12 @@ MappedFile* map_file2mem(const char* path) {
   return mappedFile;
 }
 
+//==================================================================== 80 =====
 
-//unordered_map<string, vector<int>>*
-void OBRC_worker(char* mem, long long begin, long long end,
-                 std::unordered_map<std::string, std::vector<int>*>* mapped_values) {
-//    auto* mapped_values = new unordered_map<string, vector<int>>();
+void OBRC_worker(char* mem,
+                 long long begin,
+                 long long end,
+                 unordered_map<string, vector<int>*>* mapped_values) {
     long long i = begin;
     long long j = begin;
 
@@ -91,10 +95,12 @@ void OBRC_worker(char* mem, long long begin, long long end,
                 temp_str = temp_str.substr(0, decimal + 1);
             }
 
-            temp_str.erase(
-                    remove(temp_str.begin(), temp_str.end(), '.'), temp_str.end()
+            temp_str.erase(remove(temp_str.begin(),
+                           temp_str.end(), '.'),
+                           temp_str.end()
                     );
-            int temp = StoI(temp_str.c_str()); // Reduces by 25% without stoi
+            // Reduces by 25% without stoi
+            int temp = StoI(temp_str.c_str());
 
             if (mapped_values->find(station) != mapped_values->end()) {
                 auto& t = (*mapped_values)[station];
@@ -107,7 +113,11 @@ void OBRC_worker(char* mem, long long begin, long long end,
                 (*mapped_values).insert(
                         {station, new vector<int>{temp, temp, temp, 1}
                         }); // ----vvvvvvvvvvvvv
-            } // extremely hacky: [0] - min, [1] - running total, [2] - max, [3] - size.
+            } // extremely hacky:
+              // [0] - min,
+              // [1] - running total,
+              // [2] - max,
+              // [3] - size.
             j = i = j + 1;
         } else {
             j++;
@@ -115,6 +125,7 @@ void OBRC_worker(char* mem, long long begin, long long end,
     }
 }
 
+//==================================================================== 80 =====
 
 std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
     MappedFile* mapped_file, unsigned int hw_threads) {
@@ -157,6 +168,8 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
           }
       }
 
+//==================================================================== 80 =====
+
         auto* thread_map = new unordered_map<string, vector<int>*> {};
         futures.push_back(thread_map);
         threads.emplace_back(OBRC_worker, mapped_file->map, begin, end,
@@ -197,11 +210,8 @@ std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
 
   return results;
 }
-/*
-* /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
-* /home/gmaldonado/t/one-billion-row-challenge-gmaldona/1brc/data/measurements.txt
-* /home/gmaldonado/one-billion-row-challenge-gmaldona/1brc/src/test/resources/samples/measurements-10.txt
-*/
+
+//==================================================================== 80 =====
 
 int main(int args, char** argv) {
   string filepath;
