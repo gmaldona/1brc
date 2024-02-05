@@ -37,7 +37,7 @@ struct MappedFile {
  * computation on a buffer due to the fact of divide and conquer on the
  * memory.
  */
-std::unique_ptr<MappedFile> map_file2mem(const char *path);
+MappedFile* map_file2mem(const char *path);
 
 /**
  * Sequential Computation (First Attempt):
@@ -68,8 +68,8 @@ std::unique_ptr<MappedFile> map_file2mem(const char *path);
  * would be most ideal.
  *
  */
-std::unordered_map<std::string, std::vector<float>> *OBRC_futures(
-    const std::unique_ptr<MappedFile> &mapped_file,
+std::unordered_map<std::string, std::vector<float>*> *OBRC_futures(
+    MappedFile* mapped_file,
     unsigned int hw_threads = std::thread::hardware_concurrency() - 1);
 
 /**
@@ -88,7 +88,11 @@ std::unordered_map<std::string, std::vector<float>> *OBRC_futures(
  */
 void OBRC_futureworker(
     char *mem, long long begin, long long end,
-    std::promise<std::unordered_map<std::string, std::vector<int>> *> prom);
+    std::unordered_map<std::string, std::vector<int>*> * mapped_values);
+
+//unordered_map<string, vector<int>>*
+void OBRC_worker(char* mem, long long begin, long long end,
+    std::unordered_map<std::string, std::vector<int>*>* mapped_values);
 
 // void OBRC_concurworker(
 //     char *memmap, long long begin, long long end,

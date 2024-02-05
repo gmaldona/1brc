@@ -26,9 +26,7 @@
 #include <list>
 #include <cmath>
 #include <functional>
-#include <future>
 #include <iostream>
-#include <numeric>
 #include <thread>
 
 using namespace std;
@@ -56,8 +54,8 @@ inline int AtoI(const char *p) {
  * @param path: string representation of a path to a file.
  * @returns: a pointer to the file contents.
  */
-unique_ptr<MappedFile> map_file2mem(const char* path) {
-  auto mappedFile = make_unique<MappedFile>();
+MappedFile* map_file2mem(const char* path) {
+  auto mappedFile = new MappedFile();
 
   // try to open the file and if fail return nullptr for main to handle
   if ((mappedFile->fd = open(path, O_RDONLY)) == -1 ||
@@ -73,9 +71,10 @@ unique_ptr<MappedFile> map_file2mem(const char* path) {
 }
 
 
-unordered_map<string, vector<int>>* OBRC_worker(
-        char* mem, long long begin, long long end) {
-    auto* mapped_values = new unordered_map<string, vector<int>>();
+//unordered_map<string, vector<int>>*
+void OBRC_worker(
+        char* mem, long long begin, long long end, std::unordered_map<std::string, std::vector<int>*>* mapped_values) {
+//    auto* mapped_values = new unordered_map<string, vector<int>>();
     long long i = begin;
     long long j = begin;
 
@@ -89,7 +88,7 @@ unordered_map<string, vector<int>>* OBRC_worker(
             unsigned long decimal = temp_str.find('.');
 
             if (decimal + 2 < temp_str.size()) {
-                temp_str = temp_str.substr(0, decimal + 2);
+                temp_str = temp_str.substr(0, decimal + 1);
             }
 
             temp_str.erase(remove(temp_str.begin(), temp_str.end(), '.'), temp_str.end());
@@ -97,51 +96,44 @@ unordered_map<string, vector<int>>* OBRC_worker(
 
             if (mapped_values->find(station) != mapped_values->end()) {
                 auto& t = (*mapped_values)[station];
-                if (temp < t[0]) { t[0] = temp; }
-                t[1] = t[1] + temp;
-                if (temp > t[2]) { t[2] = temp; }
-                t[4]++;
+                if (temp < (*t)[0]) { (*t)[0] = temp; }
+                (*t)[1] = (*t)[1] + temp;
+                if (temp > (*t)[2]) { (*t)[2] = temp; }
+                (*t)[3] = (*t)[3] + 1;
             }
             else {
-                (*mapped_values).insert({station, {temp, temp, temp, 1}}); // ----vvvvvvvvvvvvv
+                (*mapped_values).insert({station, new vector<int>{temp, temp, temp, 1}}); // ----vvvvvvvvvvvvv
             }                   // extremely hacky: [0] - min, [1] - running total, [2] - max, [3] - temperatures found.
             j = i = j + 1;
         } else {
             j++;
         }
     }
-
-    return mapped_values;
 }
 
 
-void OBRC_futureworker(
-    char* mem, long long begin, long long end,
-    std::promise<std::unordered_map<std::string, std::vector<int>>*> prom) {
-  prom.set_value(OBRC_worker(mem, begin, end));
-}
-
-std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
-    const std::unique_ptr<MappedFile>& mapped_file, unsigned int hw_threads) {
+std::unordered_map<std::string, std::vector<float>*>* OBRC_futures(
+    MappedFile* mapped_file, unsigned int hw_threads) {
   long long chunk = floor(mapped_file->fileInfo.st_size / hw_threads);
-  vector<future<unordered_map<string, vector<int>>*>> futures{};
+  vector<unordered_map<string, vector<int>*>*> futures{};
   vector<thread> threads{};
   auto futureResults = unordered_map<string, vector<int>>{};
 
   long long begin = 0;
   long long end = chunk;
 
-    auto insertResults = [&futureResults](unordered_map<string, vector<int>>* futureResult) -> void {
+    auto insertResults = [&futureResults](unordered_map<string, vector<int>*>* futureResult) -> void {
         for (auto& [key, vec] : *futureResult) {
             if (futureResults.find(key) == futureResults.end()) {
-                futureResults.insert({key, vec});
+                futureResults.insert({key, *vec});
             } else {
                 auto& res_vec = futureResults[key];
-                if (vec[0] < res_vec[0]) { res_vec[0] = vec[0]; }
-                if (vec[2] > res_vec[2]) {res_vec[2] = vec[2]; }
-                res_vec[1] = res_vec[1] + vec[1];
-
+                if ((*vec)[0] < res_vec[0]) { res_vec[0] = (*vec)[0]; }
+                res_vec[1] = res_vec[1] + (*vec)[1];
+                if ((*vec)[2] > res_vec[2]) {res_vec[2] = (*vec)[2]; }
+                res_vec[3] = res_vec[3] + (*vec)[3];
             }
+            delete vec;
         }
     };
 
@@ -160,10 +152,12 @@ std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
           }
       }
 
-      promise<unordered_map<string, vector<int>> *> prom;
-      futures.push_back(prom.get_future());
-//      threads.push_back(thread(OBRC_futureworker, mapped_file->map, begin, end,
-//                               std::move(prom)));
+//      promise<unordered_map<string, vector<int>> *> prom;
+//      futures.push_back(prom.get_future());
+        auto* thread_map = new unordered_map<string, vector<int>*> {};
+        futures.push_back(thread_map);
+        threads.emplace_back(OBRC_worker, mapped_file->map, begin, end,
+                               thread_map);
 
       // sequential
 //      auto result = OBRC_worker(mapped_file->map, begin, end);
@@ -180,26 +174,26 @@ std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
             : mapped_file->fileInfo.st_size - 1;
   }
 
-    auto result = OBRC_worker(mapped_file->map, begin, mapped_file->fileInfo.st_size - 1);
+    auto* result = new unordered_map<string, vector<int>*> {};
+    OBRC_worker(mapped_file->map, begin, mapped_file->fileInfo.st_size - 1, result);
     insertResults(result);
     delete result;
 
     int i = 0;
     for (auto& t : threads) {
         t.join();
-        auto* futureResult = futures[i].get();
-        insertResults(futureResult);
-        delete futureResult;
+        auto* r = futures[i];
+        insertResults(r);
+        delete r;
         i++;
     }
 
-  auto* results = new unordered_map<string, vector<float>>{};
+  auto* results = new unordered_map<string, vector<float>*>{};
   for (auto& [key, vec] : futureResults) {
     float min = vec[0] / 10.0f;
-    float avg = ((vec[1] ) / 10.0f) / (float)vec[3];
+    float avg = (((float)vec[1] ) / 10.0f) / (float)vec[3];
     float max = vec[2] / 10.0f;
-    vector<float> stats{min, avg, max};
-    results->insert({key, stats});
+    results->insert({key, new vector<float>{min, avg, max}});
   };
 
   return results;
@@ -218,22 +212,25 @@ int main(int args, char** argv) {
       exit(0);
    }
 
-  auto mapped_file = map_file2mem(filepath.c_str());
+  auto* mapped_file = map_file2mem(filepath.c_str());
   if (mapped_file == nullptr) {
     perror("File mapping to memory failed.");
     exit(1);
   }
 
-  unordered_map<string, vector<float>>* results;
+  unordered_map<string, vector<float>*>* results;
   results = OBRC_futures(mapped_file);
 
   printf("{");
   for (auto& [k, v] : *results) {
-    printf("%s=%.1f/%.1f/%.1f, ", k.c_str(), v[0], v[1], v[2]);
+    printf("%s=%.1f/%.1f/%.1f, ", k.c_str(), (*v)[0], (*v)[1], (*v)[2]);
+    delete v;
   }
   printf("%c%c}", char(0x08), char(0x08));
 
   delete results;
+
+  delete mapped_file;
 
   return 0;
 }

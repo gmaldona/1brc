@@ -23,7 +23,7 @@ $(TARGET): $(TARGET).o
 	$(CC) $(CFLAGS) -o build/$(TARGET) $(TARGET).cpp -pthread -lstdc++
 
 $(TARGET).o: .pre $(TARGET).cpp $(TARGET).hpp
-	$(CC) $(CFLAGS) -c $(TARGET).cpp -pthread -lstdc++ -ltbb
+	$(CC) $(CFLAGS) -c $(TARGET).cpp -pthread -lstdc++
 
 .post:
 	chmod +x build/$(TARGET)
