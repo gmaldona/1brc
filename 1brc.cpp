@@ -162,8 +162,8 @@ std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
 
       promise<unordered_map<string, vector<int>> *> prom;
       futures.push_back(prom.get_future());
-      threads.push_back(thread(OBRC_futureworker, mapped_file->map, begin, end,
-                               std::move(prom)));
+//      threads.push_back(thread(OBRC_futureworker, mapped_file->map, begin, end,
+//                               std::move(prom)));
 
       // sequential
 //      auto result = OBRC_worker(mapped_file->map, begin, end);
@@ -179,7 +179,7 @@ std::unordered_map<std::string, std::vector<float>>* OBRC_futures(
             ? end + chunk
             : mapped_file->fileInfo.st_size - 1;
   }
-  
+
     auto result = OBRC_worker(mapped_file->map, begin, mapped_file->fileInfo.st_size - 1);
     insertResults(result);
     delete result;
