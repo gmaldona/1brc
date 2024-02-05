@@ -41,6 +41,11 @@ MappedFile::~MappedFile() {
   }
 }
 
+/**
+ * references used:
+ * https://www.cs.binghamton.edu/~kchiu/cs447/assign/1/examples/parse.cpp
+ *
+ */
 inline int StoI(const char *p) {
     int x = 0; int isNeg = 0;
     if (*p == '-') { isNeg = 1; ++p; }
